@@ -1,9 +1,0 @@
-numpy
-opencv-python
-open3d
-scipy
-pillow
-streamlit
-rembg
-matplotlib
-scikit-image

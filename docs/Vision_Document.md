@@ -48,3 +48,34 @@ Digital Twin Engine Prototype
 Next Stage:
 
 Asset Detection and Defect Analysis
+
+## Architecture 
+                    Power_Twin_AI
+                         │
+            ┌────────────┴─────────────┐
+            │                          │
+      Image Preprocessing         Camera Calibration
+            │                          │
+            └────────────┬─────────────┘
+                         │
+                  Sparse Reconstruction
+                         │
+        ┌────────────────┼────────────────┐
+        │                │                │
+   Custom SfM       COLMAP SfM       Future AI SfM
+                         │
+                         ▼
+                Dense Reconstruction
+        ┌────────────────┼────────────────┐
+        │                │                │
+   Custom Stereo    COLMAP PatchMatch   AI Depth
+        │                │                │
+        └────────────────┴────────────────┘
+                         │
+                  Point Cloud Fusion
+                         │
+                  Mesh Generation
+                         │
+                Texture Generation
+                         │
+                  Digital Twin Output

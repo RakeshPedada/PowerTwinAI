@@ -25,18 +25,18 @@ This document describes the planned development roadmap of PowerTwinAI from its 
 PowerTwinAI follows an incremental engineering approach where each development phase builds upon the previous one. Rather than implementing all capabilities simultaneously, every module is designed, validated, documented, and integrated before progressing to the next stage. This strategy ensures maintainability, scalability, and a strong engineering foundation for the final platform.
 
 ---
-# Phase 0: Foundation Consolidation
+## Phase 0 - Foundation Consolidation
 
-Duration: Month 1
+**Duration:** Month 1
 
-Goals:
+**Goals:**
 
 * Organize existing reconstruction code
 * Improve documentation
 * Benchmark reconstruction quality
 * Upload code to GitHub
 
-Deliverables:
+**Deliverables**
 
 * Stable Reconstruction Engine v1.0
 * Documentation
@@ -45,40 +45,40 @@ Deliverables:
 
 ---
 
-# Phase 1: Asset Detection
+## Phase 1 - Asset Detection
 
-Duration: Months 2–4
+**Duration:** Months 2–4
 
-Goals:
+**Goals:**
 
 * Learn object detection
 * Create transmission asset dataset
 * Train detection models
 
-Target Assets:
+**Target Assets**
 
 * Transmission Towers
 * Insulators
 * Cross Arms
 * Conductors
 
-Deliverables:
+**Deliverables**
 
 * Asset Detection Module
 
 ---
 
-# Phase 2: Defect Detection
+## Phase 2 - Defect Detection
 
-Duration: Months 5–8
+**Duration:** Months 5–8
 
-Goals:
+**Goals:**
 
 * Collect defect datasets
 * Train AI models
 * Detect infrastructure defects
 
-Target Defects:
+**Target Defects**
 
 * Corrosion
 * Rust
@@ -86,85 +86,85 @@ Target Defects:
 * Missing Bolts
 * Vegetation Encroachment
 
-Deliverables:
+**Deliverables**
 
 * Defect Detection Module
 
 ---
 
-# Phase 3: 3D Defect Localization
+## Phase 3 - 3D Defect Localization
 
-Duration: Months 9–11
+**Duration:** Months 9–11
 
-Goals:
+**Goals:**
 
 * Map defects into reconstructed models
 * Visualize defects in 3D
 
-Deliverables:
+**Deliverables**
 
 * Interactive Defect Localization
 
 ---
 
-# Phase 4: Drone Integration
+## Phase 4 - Drone Integration
 
-Duration: Months 12–15
+**Duration:** Months 12–15
 
-Goals:
+**Goals:**
 
 * Study drone ecosystem
 * Design autonomous inspection workflow
 * Automate image acquisition
 
-Deliverables:
+**Deliverables**
 
 * Drone Inspection Module
 
 ---
 
-# Phase 5: Health Assessment
+## Phase 5 - Health Assessment
 
-Duration: Months 16–18
+**Duration:** Months 16–18
 
-Goals:
+**Goals:**
 
 * Develop health scoring system
 * Assess tower condition
 
-Deliverables:
+**Deliverables**
 
 * Asset Health Score
 
 ---
 
-# Phase 6: Predictive Maintenance
+## Phase 6 - Predictive Maintenance
 
-Duration: Months 19–21
+**Duration:** Months 19–21
 
-Goals:
+**Goals:**
 
 * Compare inspection history
 * Identify degradation trends
 
-Deliverables:
+**Deliverables**
 
 * Predictive Maintenance Engine
 
 ---
 
-# Phase 7: Platform Integration
+## Phase 7 - Platform Integration
 
-Duration: Months 22–24
+**Duration:** Months 22–24
 
-Goals:
+**Goals:**
 
 * Integrate all modules
 * Final testing
 * Documentation
 * Demonstration
 
-Deliverables:
+**Deliverables**
 
 * PowerTwinAI v1.0
 * Technical Report
@@ -198,7 +198,6 @@ Maintenance Recommendations
 Dashboard
 ---
 
----
 
 ## Related Documents
 
@@ -206,3 +205,5 @@ Dashboard
 - [Vision Document](Vision_Document.md)
 - [Current Development Status](Current_Status.md)
 - [Reconstruction Module](../reconstruction/README.md)
+
+- The successful completion of these phases will transform PowerTwinAI from a reconstruction prototype into a comprehensive AI-powered Digital Twin platform for intelligent infrastructure inspection and predictive maintenance.

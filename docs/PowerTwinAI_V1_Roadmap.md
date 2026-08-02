@@ -1,11 +1,30 @@
-# PowerTwinAI Roadmap
+# PowerTwinAI Development Roadmap
 
-## Duration
+**Version:** 1.0
 
-24 Months
+**Status:** Active
+
+**Timeline:** 24 Months
+
+**Owner:** Pedada Rakesh
+
+**Related Documents**
+
+- [README.md](../README.md)
+- [Vision_Document.md](Vision_Document.md)
+- [Current_Status.md](Current_Status.md)
 
 ---
+## Purpose
 
+This document describes the planned development roadmap of PowerTwinAI from its current reconstruction prototype to a complete AI-powered Digital Twin platform. Each phase defines clear objectives, expected deliverables, and the long-term evolution of the project.
+
+---
+## Development Philosophy
+
+PowerTwinAI follows an incremental engineering approach where each development phase builds upon the previous one. Rather than implementing all capabilities simultaneously, every module is designed, validated, documented, and integrated before progressing to the next stage. This strategy ensures maintainability, scalability, and a strong engineering foundation for the final platform.
+
+---
 # Phase 0: Foundation Consolidation
 
 Duration: Month 1
@@ -177,3 +196,13 @@ Predictive Maintenance
 Maintenance Recommendations
 ↓
 Dashboard
+---
+
+---
+
+## Related Documents
+
+- [Project README](../README.md)
+- [Vision Document](Vision_Document.md)
+- [Current Development Status](Current_Status.md)
+- [Reconstruction Module](../reconstruction/README.md)

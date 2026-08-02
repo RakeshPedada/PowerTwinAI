@@ -44,51 +44,112 @@ This repository documents the complete engineering journey of PowerTwinAI—from
 
 ## Repository Structure
 
-> _To be written._
+```text
+PowerTwinAI/
+│
+├── README.md
+├── docs/
+│   ├── README.md
+│   ├── Vision_Document.md
+│   ├── Current_Status.md
+│   └── Roadmap.md
+│
+└── reconstruction/
+    ├── README.md
+    └── v3_current/
+```
 
 ---
 
 ## Documentation
 
-> _To be written._
+The `docs/` directory contains the primary project documentation that describes the vision, current development status, and future roadmap of PowerTwinAI.
+
+Current documents include:
+
+- **Vision Document** – Long-term vision and objectives of the platform.
+- **Current Status** – Current implementation progress and completed milestones.
+- **Roadmap** – Planned development phases and future modules.
+- **Documentation README** – Overview of the documentation structure.
 
 ---
 
 ## Reconstruction Module
 
-> _To be written._
+The reconstruction module represents the first major subsystem of PowerTwinAI.
+
+The current implementation (**V3**) performs automated image-based 2D-to-3D reconstruction using Python, OpenCV, COLMAP, Open3D, and Streamlit. This module establishes the foundation upon which future AI-powered Digital Twin capabilities will be developed.
+
+For more information, refer to:
+
+📄 [`reconstruction/README.md`](reconstruction/README.md)
 
 ---
 
 ## Technology Stack
 
-> _To be written._
+### Programming Language
 
+- Python
+
+### Computer Vision
+
+- OpenCV
+- COLMAP
+
+### 3D Processing
+
+- Open3D
+
+### User Interface
+
+- Streamlit
+
+### Scientific Computing
+
+- NumPy
+- SciPy
 ---
 
 ## Roadmap
 
-> _To be written._
+PowerTwinAI is being developed in multiple stages.
+
+- ✅ V1 – Initial custom reconstruction pipeline
+- ✅ V2 – Hybrid reconstruction approach
+- ✅ V3 – Automated 2D-to-3D reconstruction
+- 🔄 Next – AI-Based Defect Detection
+- 🔄 Future – Digital Twin Generation
+- 🔄 Future – Inspection Analytics
+- 🔄 Future – Predictive Maintenance
+- 🔄 Future – Cloud Platform
+
+📄 **Detailed Roadmap:** [`docs/Roadmap.md`](docs/Roadmap.md)
 
 ---
 
 ## Future Vision
 
-> _To be written._
+The long-term objective of PowerTwinAI is to evolve into a comprehensive Digital Twin platform capable of supporting intelligent infrastructure inspection, asset monitoring, defect analysis, predictive maintenance, and cloud-based decision support for electrical infrastructure.
+
+The current reconstruction system serves as the foundation for achieving this vision through future AI-driven modules.
 
 ---
 
 ## Author
 
-> _To be written._
+**Developer**
+
+PEDADA RAKESH
+
+Electrical & Electronics Engineering Student
+
+National Institute of Technology Nagaland
+
+Project: PowerTwinAI
 
 ---
 
-## Acknowledgements
-
-> _To be written._
-
----
 
 ## License
 

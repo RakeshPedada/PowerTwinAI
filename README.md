@@ -4,7 +4,7 @@
 
 ---
 
-# Project Introduction
+## Project Introduction
 
 PowerTwinAI is a long-term research and software engineering project focused on building an AI-powered Digital Twin platform for electrical infrastructure. The project aims to combine computer vision, artificial intelligence, and digital twin technologies to automate infrastructure inspection, condition assessment, and predictive maintenance.
 
@@ -14,7 +14,7 @@ PowerTwinAI is being developed as both a research initiative and an engineering 
 
 ---
 
-# Vision
+## Vision
 
 PowerTwinAI is envisioned as a complete AI-powered Digital Twin platform for electrical infrastructure. The long-term goal is to enable intelligent inspection, condition assessment, defect detection, predictive maintenance, and digital asset management using computer vision, artificial intelligence, and cloud technologies.
 
@@ -24,7 +24,7 @@ The current V3 reconstruction module represents the first milestone of this visi
 
 ---
 
-# Current Development Stage
+## Current Development Stage
 
 | Item | Status |
 |------|--------|
@@ -36,60 +36,60 @@ The current V3 reconstruction module represents the first milestone of this visi
 
 ---
 
-# Repository Overview
+## Repository Overview
 
 This repository documents the complete engineering journey of PowerTwinAI—from its initial research prototype to its long-term vision as an AI-powered Digital Twin platform. It contains project documentation, development roadmaps, implementation history, and reconstruction modules while preserving the evolution of the system through each major milestone.
 
 ---
 
-# Repository Structure
+## Repository Structure
 
 > _To be written._
 
 ---
 
-# Documentation
+## Documentation
 
 > _To be written._
 
 ---
 
-# Reconstruction Module
+## Reconstruction Module
 
 > _To be written._
 
 ---
 
-# Technology Stack
+## Technology Stack
 
 > _To be written._
 
 ---
 
-# Roadmap
+## Roadmap
 
 > _To be written._
 
 ---
 
-# Future Vision
+## Future Vision
 
 > _To be written._
 
 ---
 
-# Author
+## Author
 
 > _To be written._
 
 ---
 
-# Acknowledgements
+## Acknowledgements
 
 > _To be written._
 
 ---
 
-# License
+## License
 
 > _To be added in the future._

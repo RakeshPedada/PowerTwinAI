@@ -3,6 +3,20 @@
 > Building the Future of AI-Powered Digital Twins for Infrastructure Inspection & Asset Management
 
 ---
+## Table of Contents
+
+- [Project Introduction](#project-introduction)
+- [Current Development Stage](#current-development-stage)
+- [Vision](#vision)
+- [Repository Overview](#repository-overview)
+- [Repository Structure](#repository-structure)
+- [Documentation](#documentation)
+- [Reconstruction Module](#reconstruction-module)
+- [Technology Stack](#technology-stack)
+- [Roadmap](#roadmap)
+- [Future Vision](#future-vision)
+- [Author](#author)
+- [License](#license)
 
 ## Project Introduction
 
@@ -14,15 +28,7 @@ PowerTwinAI is being developed as both a research initiative and an engineering 
 
 ---
 
-## Vision
 
-PowerTwinAI is envisioned as a complete AI-powered Digital Twin platform for electrical infrastructure. The long-term goal is to enable intelligent inspection, condition assessment, defect detection, predictive maintenance, and digital asset management using computer vision, artificial intelligence, and cloud technologies.
-
-The current V3 reconstruction module represents the first milestone of this vision by providing automated image-based 3D reconstruction, forming the foundation upon which future AI modules will be built.
-
-📄 **Read the complete project vision:** [`docs/Vision_Document.md`](docs/Vision_Document.md)
-
----
 
 ## Current Development Stage
 
@@ -36,12 +42,28 @@ The current V3 reconstruction module represents the first milestone of this visi
 
 ---
 
+## Vision
+
+PowerTwinAI is envisioned as a complete AI-powered Digital Twin platform for electrical infrastructure. The long-term goal is to enable intelligent inspection, condition assessment, defect detection, predictive maintenance, and digital asset management using computer vision, artificial intelligence, and cloud technologies.
+
+The current V3 reconstruction module represents the first milestone of this vision by providing automated image-based 3D reconstruction, forming the foundation upon which future AI modules will be built.
+
+📄 **Read the complete project vision:** [`docs/Vision_Document.md`](docs/Vision_Document.md)
+
+---
+
 ## Repository Overview
 
 This repository documents the complete engineering journey of PowerTwinAI—from its initial research prototype to its long-term vision as an AI-powered Digital Twin platform. It contains project documentation, development roadmaps, implementation history, and reconstruction modules while preserving the evolution of the system through each major milestone.
 
 ---
+## Quick Links
 
+- 📖 Project Vision → `docs/Vision_Document.md`
+- 📊 Current Status → `docs/Current_Status.md`
+- 🗺 Development Roadmap → `docs/Roadmap.md`
+- 🧩 Reconstruction Module → `reconstruction/README.md`
+---
 ## Repository Structure
 
 ```text
@@ -57,6 +79,11 @@ PowerTwinAI/
 └── reconstruction/
     ├── README.md
     └── v3_current/
+        ├── app.py
+        ├── reconstruction.py
+        ├── dense_reconstruction.py
+        ├── reconstruction_runner.py
+        └── ...
 ```
 
 ---
@@ -138,15 +165,18 @@ The current reconstruction system serves as the foundation for achieving this vi
 
 ## Author
 
-**Developer**
+## Author
 
-PEDADA RAKESH
+**Pedada Rakesh**
 
-Electrical & Electronics Engineering Student
-
+Electrical & Electronics Engineering Student  
 National Institute of Technology Nagaland
 
-Project: PowerTwinAI
+Developer and Architect of **PowerTwinAI**
+
+GitHub: `RakeshPedada`
+
+> Building PowerTwinAI as a long-term AI-powered Digital Twin platform for infrastructure inspection and asset management.
 
 ---
 

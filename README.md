@@ -59,10 +59,10 @@ This repository documents the complete engineering journey of PowerTwinAI—from
 ---
 ## Quick Links
 
-- 📖 Project Vision → `docs/Vision_Document.md`
-- 📊 Current Status → `docs/Current_Status.md`
-- 🗺 Development Roadmap → `docs/Roadmap.md`
-- 🧩 Reconstruction Module → `reconstruction/README.md`
+- 📖 [Project Vision](docs/Vision_Document.md)
+- 📊 [Current Status](docs/Current_Status.md)
+- 🗺 [Development Roadmap](docs/Roadmap.md)
+- 🧩 [Reconstruction Module](reconstruction/README.md)
 ---
 ## Repository Structure
 
@@ -155,7 +155,7 @@ PowerTwinAI is being developed in multiple stages.
 
 ---
 
-## Future Vision
+## Long Term Vision
 
 The long-term objective of PowerTwinAI is to evolve into a comprehensive Digital Twin platform capable of supporting intelligent infrastructure inspection, asset monitoring, defect analysis, predictive maintenance, and cloud-based decision support for electrical infrastructure.
 
@@ -163,7 +163,6 @@ The current reconstruction system serves as the foundation for achieving this vi
 
 ---
 
-## Author
 
 ## Author
 
@@ -183,4 +182,6 @@ GitHub: `RakeshPedada`
 
 ## License
 
-> _To be added in the future._
+This project is currently under active development.
+
+A license will be added before the first public release.

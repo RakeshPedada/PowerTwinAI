@@ -55,7 +55,7 @@ To create a scalable infrastructure intelligence platform that can be extended t
 
 ## Current Development Status
 
-Completed:
+###Completed:
 
 * Python Application
 * Streamlit Interface
@@ -66,16 +66,17 @@ Completed:
 * Reconstruction Analytics
 * Visualization
 
-Current Stage:
+###Current Stage:
 
 Digital Twin Engine Prototype
 
-Next Stage:
+###Next Stage:
 
 Asset Detection and Defect Analysis
 
-## Architecture 
-                    Power_Twin_AI
+## System Architecture Overview
+```text
+                    PowerTwinAI
                          │
             ┌────────────┴─────────────┐
             │                          │
@@ -105,9 +106,9 @@ Asset Detection and Defect Analysis
                          │
                   Digital Twin Output
 
+The vision described in this document serves as the guiding principle for every future module and architectural decision within PowerTwinAI, ensuring that each development phase contributes toward building a scalable AI-powered Digital Twin platform.
 
 ---
-
 ## Related Documents
 
 - [Project README](../README.md)

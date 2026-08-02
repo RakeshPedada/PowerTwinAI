@@ -1,4 +1,27 @@
-# PowerTwinAI
+# PowerTwinAI Vision Document
+
+**Version:** 1.0
+
+**Status:** Active
+
+**Last Updated:** August 2026
+
+**Owner:** Pedada Rakesh
+
+**Related Documents**
+
+- [README.md](../README.md)
+- [Current_Status.md](Current_Status.md)
+- [Roadmap.md](Roadmap.md)
+- [reconstruction/README.md](../reconstruction/README.md)
+
+---
+
+## Purpose
+
+This document defines the long-term vision, strategic objectives, and future direction of **PowerTwinAI**. It serves as the primary reference for architectural decisions and guides the development of future modules within the platform.
+
+---
 
 ## Vision Statement
 
@@ -6,7 +29,9 @@ PowerTwinAI is an AI-powered Digital Twin and Predictive Maintenance Platform fo
 
 The platform aims to automate transmission tower inspection using drones, computer vision, 3D reconstruction, and artificial intelligence.
 
-The system will:
+## Core Objectives
+
+PowerTwinAI is being developed to achieve the following objectives:
 
 * Capture transmission tower images using autonomous drones.
 * Upload inspection data to the cloud.
@@ -18,7 +43,7 @@ The system will:
 * Provide maintenance recommendations.
 * Maintain inspection history for predictive maintenance.
 
-## Long-Term Goal
+## Long-Term Vision
 
 To create a scalable infrastructure intelligence platform that can be extended to:
 
@@ -28,7 +53,7 @@ To create a scalable infrastructure intelligence platform that can be extended t
 * Solar Power Plants
 * Wind Farms
 
-## Current Status
+## Current Development Status
 
 Completed:
 
@@ -79,3 +104,13 @@ Asset Detection and Defect Analysis
                 Texture Generation
                          │
                   Digital Twin Output
+
+
+---
+
+## Related Documents
+
+- [Project README](../README.md)
+- [Current Development Status](Current_Status.md)
+- [Development Roadmap](Roadmap.md)
+- [Reconstruction Module](../reconstruction/README.md)                  

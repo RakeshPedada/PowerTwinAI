@@ -33,19 +33,22 @@ This directory contains the technical, architectural, and planning documents tha
 | Document | Description |
 |----------|-------------|
 | Vision_Document.md | Defines the long-term vision, objectives, and future direction of PowerTwinAI. |
-| Current_Status.md | Describes the current implementation, completed milestones, and known limitations. |
-| Roadmap.md | Presents the planned development phases and future modules of the project. |
+| Architecture.md | Describes the software architecture, system design, and engineering decisions. |
+| Developer_Guide.md | Provides development workflow, repository standards, and contribution guidelines. |
+| Current_Status.md | Summarizes the current implementation progress and completed milestones. |
+| Roadmap.md | Presents the planned development phases and long-term roadmap of the project. |
 
 ---
 
 ## Recommended Reading Order
 
-1. **Project README**
-2. **Vision Document**
-3. **Development Roadmap**
-4. **Current Development Status**
-5. **Reconstruction Module Documentation**
-
+1. Project README
+2. Vision Document
+3. Architecture
+4. Developer Guide
+5. Current Development Status
+6. Development Roadmap
+7. Reconstruction Module Documentation
 ---
 
 ## Repository

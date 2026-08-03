@@ -8,11 +8,32 @@
 
 **Owner:** Pedada Rakesh
 
-**Related Documents**
+---
 
-- [README.md](../README.md)
-- [Vision_Document.md](Vision_Document.md)
-- [Roadmap.md](Roadmap.md)
+## Documentation Navigation
+
+If you are new to PowerTwinAI, the recommended reading order is:
+
+1. Project README
+2. Vision Document
+3. Architecture
+4. Developer Guide
+5. Current Development Status
+6. Development Roadmap
+7. Reconstruction Module Documentation
+
+This reading sequence introduces the project vision, explains the system architecture, describes the development workflow, summarizes the current implementation, and outlines the future development roadmap.
+
+---
+
+## Related Documents
+
+- [Project README](../README.md)
+- [Architecture](Architecture.md)
+- [Developer Guide](Developer_Guide.md)
+- [Vision Document](Vision_Document.md)
+- [Development Roadmap](Roadmap.md)
+- [Reconstruction Module](../reconstruction/README.md)
 
 ---
 

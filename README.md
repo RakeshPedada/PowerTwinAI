@@ -59,11 +59,14 @@ This repository documents the complete engineering journey of PowerTwinAI—from
 ---
 ## Quick Links
 
-- 📖 [Project Vision](docs/Vision_Document.md)
-- 📊 [Current Status](docs/Current_Status.md)
-- 🗺 [Development Roadmap](docs/Roadmap.md)
-- 🧩 [Reconstruction Module](reconstruction/README.md)
----
+- 📖 Project Vision → `docs/Vision_Document.md`
+- 🏗️ System Architecture → `docs/Architecture.md`
+- 👨‍💻 Developer Guide → `docs/Developer_Guide.md`
+- 📊 Current Development Status → `docs/Current_Status.md`
+- 🗺️ Development Roadmap → `docs/Roadmap.md`
+- 🧩 Reconstruction Module → `reconstruction/README.md`
+  
+  ---
 ## Repository Structure
 
 ```text

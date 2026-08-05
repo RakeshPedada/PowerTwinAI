@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 import traceback
 import numpy as np
 from reconstruction_colmap import run_reconstruction
@@ -81,6 +82,14 @@ def save_status(status):
 # =========================================================
 
 try:
+    # =====================================================
+    # TOTAL PIPELINE TIMER
+    # =====================================================
+
+    pipeline_start_time = time.perf_counter()
+
+    colmap_time = 0.0
+    reconstruction_time = 0.0
 
     log_message(
         "[START] Starting Reconstruction Pipeline..."
@@ -103,15 +112,12 @@ try:
 
     uploaded_files = []
 
-    # =====================================================
-    # LOAD FILES
-    # =====================================================
-
     for path in image_paths:
 
-        file = open(path, "rb")
-
-        uploaded_files.append(file)
+        uploaded_files.append({
+            "path": path,
+            "name": os.path.basename(path)
+        })
 
     log_message(
         f"[INFO] Loaded {len(uploaded_files)} images"
@@ -126,11 +132,24 @@ try:
 
     print(f"[DEBUG] Total image paths passed to COLMAP: {len(image_paths)}")
 
+    colmap_start_time = time.perf_counter()
+
     run_colmap(image_paths)
+
+    colmap_time = (
+        time.perf_counter()
+        - colmap_start_time
+    )
+
+    log_message(
+        f"[TIME] COLMAP Reconstruction: "
+        f"{colmap_time:.2f} sec"
+    )
 
     log_message(
         "[COLMAP] Sparse reconstruction completed"
     )
+    reconstruction_start_time = time.perf_counter()
     # =====================================================
     # RUN RECONSTRUCTION
     # =====================================================
@@ -150,6 +169,16 @@ try:
 
         progress_callback=log_message
     )
+    reconstruction_time = (
+        time.perf_counter()
+        - reconstruction_start_time
+    )
+
+    log_message(
+        f"[TIME] Dense + Cleaning + Mesh: "
+        f"{reconstruction_time:.2f} sec"
+    )
+
 
     # =====================================================
     # CHECK FAILURE
@@ -168,10 +197,23 @@ try:
         )
 
     # =====================================================
+    # TOTAL PIPELINE TIME
+    # =====================================================
+
+    total_pipeline_time = (
+        time.perf_counter()
+        - pipeline_start_time
+    )
+
+    analytics["colmap_time"] = colmap_time
+    analytics["reconstruction_time"] = reconstruction_time
+    analytics["total_pipeline_time"] = total_pipeline_time
+
+    # =====================================================
     # SAVE RESULTS
     # =====================================================
 
-    np.savez(
+    np.savez (
 
         RESULT_FILE,
 
@@ -183,8 +225,18 @@ try:
 
         processing_time=processing_time,
 
-        analytics=analytics
+        colmap_time=colmap_time,
+
+        reconstruction_time=reconstruction_time,
+
+        total_pipeline_time=total_pipeline_time,
+
+        analytics=analytics,
+
+        ply_path=str(ply_path)
     )
+
+
 
     # =====================================================
     # FINAL LOGS
@@ -203,8 +255,39 @@ try:
     )
 
     log_message(
-        f"[INFO] Processing Time: "
+        f"[INFO] PLY Output: {ply_path}"
+    )
+
+    log_message(
+        "========================================"
+    )
+
+    log_message(
+        "[TIME] PROCESSING TIME SUMMARY"
+    )
+
+    log_message(
+        f"[TIME] COLMAP Sparse Reconstruction: "
+        f"{colmap_time:.2f} sec"
+    )
+
+    log_message(
+        f"[TIME] Reconstruction Stage: "
         f"{processing_time:.2f} sec"
+    )
+
+    log_message(
+        f"[TIME] Dense + Cleaning + Mesh: "
+        f"{reconstruction_time:.2f} sec"
+    )
+
+    log_message(
+        f"[TIME] TOTAL PIPELINE TIME: "
+        f"{total_pipeline_time:.2f} sec"
+    )
+
+    log_message(
+        "========================================"
     )
 
     log_message(

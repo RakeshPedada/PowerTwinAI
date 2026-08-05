@@ -2,24 +2,16 @@ import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
-import pandas as pd
+import pandas as pd 
 import subprocess
 import json
 import os
 import glob
 from streamlit_autorefresh import st_autorefresh
 from dense_reconstruction import DenseReconstructor
+from ui.styles import load_styles
+from ui.header import show_header
 
-# =========================================================
-# PATHS
-# =========================================================
-
-TEMP_DIR = "temp_session"
-
-LOG_FILE = os.path.join(TEMP_DIR, "logs.txt")
-STATUS_FILE = os.path.join(TEMP_DIR, "status.json")
-RESULT_FILE = os.path.join(TEMP_DIR, "result_data.npz")
-IMAGE_PATHS_FILE = os.path.join(TEMP_DIR, "image_paths.json")
 
 # =========================================================
 # PAGE CONFIG
@@ -33,6 +25,23 @@ st.set_page_config(
 )
 
 # =========================================================
+# LOAD UI STYLES
+# =========================================================
+
+load_styles ()
+
+# =========================================================
+# PATHS
+# =========================================================
+
+TEMP_DIR = "temp_session"
+
+LOG_FILE = os.path.join(TEMP_DIR, "logs.txt")
+STATUS_FILE = os.path.join(TEMP_DIR, "status.json")
+RESULT_FILE = os.path.join(TEMP_DIR, "result_data.npz")
+IMAGE_PATHS_FILE = os.path.join(TEMP_DIR, "image_paths.json")
+
+# =========================================================
 # SESSION STATE
 # =========================================================
 
@@ -42,265 +51,13 @@ if "reconstruction_running" not in st.session_state:
 if "reconstruction_done" not in st.session_state:
     st.session_state.reconstruction_done = False
 
-# =========================================================
-# PREMIUM CSS
-# =========================================================
 
-st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-
-<style>
-
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-    background: #020617;
-    color: white;
-}
-
-.stApp {
-
-    background:
-        radial-gradient(circle at top left,
-        rgba(0,255,200,0.08),
-        transparent 25%),
-
-        radial-gradient(circle at bottom right,
-        rgba(0,140,255,0.08),
-        transparent 25%),
-
-        linear-gradient(
-            135deg,
-            #020617 0%,
-            #06111f 40%,
-            #020617 100%
-        );
-}
-
-/* TITLE */
-
-.main-title {
-
-    font-size: 72px;
-    font-weight: 900;
-
-    text-align: center;
-
-    margin-top: 30px;
-    margin-bottom: 10px;
-
-    background: linear-gradient(
-        90deg,
-        #00e5ff,
-        #00ff99,
-        #00c3ff
-    );
-
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-
-    text-shadow:
-        0 0 25px rgba(0,255,255,0.25);
-}
-
-.sub-title {
-
-    text-align: center;
-
-    font-size: 24px;
-
-    color: #94a3b8;
-
-    margin-bottom: 50px;
-}
-
-/* METRIC CARDS */
-
-.metric-card {
-
-    background: rgba(255,255,255,0.04);
-
-    border: 1px solid rgba(0,255,170,0.15);
-
-    backdrop-filter: blur(14px);
-
-    border-radius: 24px;
-
-    padding: 30px;
-
-    box-shadow:
-        0 0 25px rgba(0,255,170,0.08);
-
-    transition: 0.3s ease;
-}
-
-.metric-card:hover {
-
-    transform: translateY(-5px);
-
-    box-shadow:
-        0 0 40px rgba(0,255,170,0.18);
-}
-
-.metric-title {
-
-    font-size: 18px;
-    color: #94a3b8;
-    font-weight: 500;
-}
-
-.metric-value {
-
-    font-size: 48px;
-    font-weight: 800;
-    color: white;
-}
-
-/* BUTTON */
-
-.stButton>button {
-
-    background: linear-gradient(
-        90deg,
-        #00c6ff,
-        #00ff99
-    );
-
-    color: black;
-
-    border: none;
-
-    border-radius: 16px;
-
-    padding: 16px 34px;
-
-    font-size: 20px;
-
-    font-weight: 800;
-
-    box-shadow:
-        0 0 25px rgba(0,255,170,0.25);
-
-    transition: 0.3s ease;
-}
-
-.stButton>button:hover {
-
-    transform: scale(1.04);
-
-    box-shadow:
-        0 0 45px rgba(0,255,170,0.45);
-}
-
-/* SECTION HEADERS */
-
-.section-title {
-
-    font-size: 42px;
-    font-weight: 800;
-
-    margin-top: 50px;
-    margin-bottom: 25px;
-
-    background: linear-gradient(
-        90deg,
-        white,
-        #9cecff
-    );
-
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* SUCCESS BOX */
-
-.success-box {
-
-    background: linear-gradient(
-        90deg,
-        rgba(0,255,140,0.18),
-        rgba(0,180,255,0.12)
-    );
-
-    border-radius: 24px;
-
-    padding: 24px;
-
-    border: 1px solid rgba(0,255,170,0.22);
-
-    font-size: 28px;
-
-    font-weight: 700;
-
-    color: #d1fae5;
-
-    text-align: center;
-
-    box-shadow:
-        0 0 30px rgba(0,255,170,0.12);
-}
-
-/* HEALTH BOX */
-
-.health-box {
-
-    background: linear-gradient(
-        90deg,
-        rgba(0,255,120,0.15),
-        rgba(0,180,255,0.15)
-    );
-
-    border-radius: 26px;
-
-    padding: 34px;
-
-    text-align: center;
-
-    font-size: 34px;
-
-    font-weight: 800;
-
-    border: 1px solid rgba(0,255,170,0.18);
-
-    box-shadow:
-        0 0 35px rgba(0,255,170,0.14);
-
-    margin-top: 20px;
-    margin-bottom: 30px;
-}
-
-/* PLOTS */
-
-.js-plotly-plot {
-
-    border-radius: 24px !important;
-
-    overflow: hidden !important;
-
-    border: 1px solid rgba(0,255,170,0.12);
-
-    box-shadow:
-        0 0 25px rgba(0,255,170,0.08);
-}
-
-</style>
-""", unsafe_allow_html=True)
 
 # =========================================================
-# TITLE
+# HEADER
 # =========================================================
 
-st.markdown("""
-<div class='main-title'>
-🚀 Advanced SfM Reconstruction Engine
-</div>
-
-<div class='sub-title'>
-Global Structure-from-Motion + Bundle Adjustment + AI Analytics Pipeline
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("---")
-
+show_header()
 # =========================================================
 # UPLOAD
 # =========================================================
@@ -518,8 +275,7 @@ if st.session_state.reconstruction_running:
 
 if (
     st.session_state.reconstruction_done
-    and
-    os.path.exists(RESULT_FILE)
+    and os.path.exists(RESULT_FILE)
 ):
 
     data = np.load(
@@ -528,35 +284,135 @@ if (
     )
 
     points = data["points"]
-
     cameras = data["cameras"]
+
+    analytics = data["analytics"].item()
+
+    # =====================================================
+    # TIMINGS
+    # =====================================================
 
     processing_time = float(
         data["processing_time"]
     )
 
-    analytics = data["analytics"].item()
+    colmap_time = float(
+        data["colmap_time"]
+    ) if "colmap_time" in data.files else 0.0
 
-    st.markdown("""
-    <div class="success-box">
-    ✅ Reconstruction Completed Successfully
-    </div>
-    """, unsafe_allow_html=True)
+    reconstruction_time = float(
+        data["reconstruction_time"]
+    ) if "reconstruction_time" in data.files else processing_time
 
- #   st.balloons()
+    total_pipeline_time = float(
+        data["total_pipeline_time"]
+    ) if "total_pipeline_time" in data.files else (
+        colmap_time + reconstruction_time
+    )
 
     # =====================================================
-    # 3D MESH RECONSTRUCTION
+    # PLY PATH
+    # =====================================================
+
+    ply_path = ""
+
+    if "ply_path" in data.files:
+        ply_path = str(
+            data["ply_path"].item()
+        )
+
+    # =====================================================
+    # SUCCESS
     # =====================================================
 
     st.markdown(
-        "<div class='section-title'>🌐 3D Mesh Reconstruction</div>",
+        """
+        <div class="success-box">
+        ✅ Reconstruction Completed Successfully
+        </div>
+        """,
         unsafe_allow_html=True
     )
-    # Remove invalid points
+
     # =====================================================
-    # SAFE POINT CLEANING
+    # DOWNLOAD
     # =====================================================
+
+    st.markdown(
+        "<div class='section-title'>⬇️ Download Reconstruction</div>",
+        unsafe_allow_html=True
+    )
+
+    if (
+        ply_path
+        and os.path.exists(ply_path)
+    ):
+
+        with open(
+            ply_path,
+            "rb"
+        ) as ply_file:
+
+            st.download_button(
+                label="⬇️ Download 3D Point Cloud (.ply)",
+                data=ply_file.read(),
+                file_name=os.path.basename(
+                    ply_path
+                ),
+                mime="application/octet-stream"
+            )
+
+    else:
+
+        st.warning(
+            f"PLY output file not found: {ply_path}"
+        )
+
+    # =====================================================
+    # PROCESSING TIME BREAKDOWN
+    # =====================================================
+
+    st.markdown(
+        "<div class='section-title'>⏱️ Processing Time</div>",
+        unsafe_allow_html=True
+    )
+
+    t1, t2, t3 = st.columns(3)
+
+    with t1:
+
+        st.metric(
+            "COLMAP",
+            f"{colmap_time:.2f} sec"
+        )
+
+    with t2:
+
+        st.metric(
+            "Dense + Cleaning + Mesh",
+            f"{reconstruction_time:.2f} sec"
+        )
+
+    with t3:
+
+        st.metric(
+            "Total Pipeline Time",
+            f"{total_pipeline_time:.2f} sec"
+        )
+
+    # =====================================================
+    # POINT CLOUD VISUALIZATION
+    # =====================================================
+
+    st.markdown(
+        "<div class='section-title'>🌐 3D Point Cloud Reconstruction</div>",
+        unsafe_allow_html=True
+    )
+
+    points = np.asarray(
+        points,
+        dtype=np.float64
+    )
 
     points = np.nan_to_num(
         points,
@@ -565,27 +421,30 @@ if (
         neginf=0.0
     )
 
-    mask = np.linalg.norm(
-        points,
-        axis=1
-    ) > 0
+    mask = (
+        np.linalg.norm(
+            points,
+            axis=1
+        ) > 0
+    )
 
     points = points[mask]
 
-    st.write(f"Valid sparse points: {len(points)}")
-
-    # =====================================================
-    # SAFE EMPTY CHECK
-    # =====================================================
+    st.write(
+        f"Valid reconstruction points: "
+        f"{len(points):,}"
+    )
 
     if len(points) == 0:
 
-        st.error("No valid reconstruction points found.")
+        st.error(
+            "No valid reconstruction points found."
+        )
 
         st.stop()
 
     # =====================================================
-    # REMOVE LARGE OUTLIERS
+    # DISPLAY-ONLY OUTLIER REMOVAL
     # =====================================================
 
     center = np.mean(
@@ -600,81 +459,76 @@ if (
 
     threshold = np.percentile(
         distances,
-        99
+        95
     )
 
-    points = points[
+    display_points = points[
         distances < threshold
     ]
 
-    st.write(f"Filtered sparse points: {len(points)}")
-    
-    st.write(f"Filtered sparse points: {len(points)}")
+    st.write(
+        f"Display points after outlier filtering: "
+        f"{len(display_points):,}"
+    )
 
-    # Normalize
-    max_val = np.max(np.abs(points))
+    # =====================================================
+    # NORMALIZE FOR DISPLAY ONLY
+    # =====================================================
+
+    max_val = np.max(
+        np.abs(
+            display_points
+        )
+    )
 
     if max_val > 0:
 
-        points = points / max_val
+        display_points = (
+            display_points
+            / max_val
+        )
 
-    # Downsample
-    if len(points) > 100000:
+    # =====================================================
+    # DOWNSAMPLE FOR BROWSER
+    # =====================================================
 
-        idx = np.random.choice(
-            len(points),
+    if len(display_points) > 100000:
+
+        rng = np.random.default_rng(42)
+
+        idx = rng.choice(
+            len(display_points),
             100000,
             replace=False
         )
 
-        points = points[idx]
+        display_points = (
+            display_points[idx]
+        )
 
-    # Create figure
+    # =====================================================
+    # POINT CLOUD FIGURE
+    # =====================================================
+
     fig = go.Figure()
+
     fig.add_trace(
-    go.Scatter3d(
-        x=points[:, 0],
-        y=points[:, 1],
-        z=points[:, 2],
+        go.Scatter3d(
 
-        mode='markers',
+            x=display_points[:, 0],
+            y=display_points[:, 1],
+            z=display_points[:, 2],
 
-        marker=dict(
-            size=2,
-            color=points[:, 2],
-            colorscale='Turbo',
-            opacity=0.8
+            mode="markers",
+
+            marker=dict(
+                size=2,
+                color=display_points[:, 2],
+                colorscale="Turbo",
+                opacity=0.8
+            )
         )
     )
-)
-# dense_reconstructor = DenseReconstructor()
-# dense_reconstructor.dense_points = points
-# dense_reconstructor.dense_colors = np.ones_like(points)
-# mesh = dense_reconstructor.create_mesh_from_cloud()
-#
-# if mesh is not None:
-#
-#     vertices = np.asarray(mesh.vertices)
-#
-#     triangles = np.asarray(mesh.triangles)
-#
-#     fig.add_trace(
-#         go.Mesh3d(
-#             x=vertices[:, 0],
-#             y=vertices[:, 1],
-#             z=vertices[:, 2],
-#
-#             i=triangles[:, 0],
-#             j=triangles[:, 1],
-#             k=triangles[:, 2],
-#
-#             opacity=1.0,
-#
-#             color='lightblue',
-#
-#             flatshading=False
-#         )
-#     )
 
     fig.update_layout(
 
@@ -686,14 +540,22 @@ if (
 
         scene=dict(
             bgcolor="#010409",
-            aspectmode='cube'
+            aspectmode="data"
+        ),
+
+        margin=dict(
+            l=0,
+            r=0,
+            t=20,
+            b=0
         )
     )
 
     st.plotly_chart(
         fig,
         use_container_width=True
-    )            
+    )
+
     # =====================================================
     # CAMERA TRAJECTORY
     # =====================================================
@@ -703,151 +565,205 @@ if (
         unsafe_allow_html=True
     )
 
-    fig_cam = go.Figure()
+    cameras = np.asarray(
+        cameras,
+        dtype=np.float64
+    )
 
-    fig_cam.add_trace(
-        go.Scatter3d(
-            x=cameras[:,0],
-            y=cameras[:,1],
-            z=cameras[:,2],
+    if (
+        cameras.ndim == 2
+        and cameras.shape[1] == 3
+        and len(cameras) > 0
+    ):
 
-            mode='lines+markers',
+        fig_cam = go.Figure()
 
-            marker=dict(
-                size=8,
-                color="#00ff99"
-            ),
+        fig_cam.add_trace(
+            go.Scatter3d(
 
-            line=dict(
-                width=4,
-                color="#00ffaa"
+                x=cameras[:, 0],
+                y=cameras[:, 1],
+                z=cameras[:, 2],
+
+                mode="lines+markers",
+
+                marker=dict(
+                    size=6,
+                    color="#00ff99"
+                ),
+
+                line=dict(
+                    width=4,
+                    color="#00ffaa"
+                )
             )
         )
-    )
 
-    fig_cam.update_layout(
+        fig_cam.update_layout(
 
-        height=650,
+            height=650,
 
-        paper_bgcolor="#020617",
+            paper_bgcolor="#020617",
 
-        scene=dict(
-            bgcolor="#010409"
-        ),
+            scene=dict(
+                bgcolor="#010409",
+                aspectmode="data"
+            ),
 
-        font=dict(
-            family="Inter",
-            size=16,
-            color="white"
+            font=dict(
+                family="Inter",
+                size=16,
+                color="white"
+            ),
+
+            margin=dict(
+                l=0,
+                r=0,
+                t=20,
+                b=0
+            )
         )
-    )
 
-    st.plotly_chart(
-        fig_cam,
-        use_container_width=True
-    )
-
-    # =====================================================
-    # CONFIDENCE HISTOGRAM
-    # =====================================================
-
-    pair_logs = pd.read_csv(
-        "output/pair_logs.csv"
-    )
-
-    st.markdown(
-        "<div class='section-title'>📊 Confidence Distribution</div>",
-        unsafe_allow_html=True
-    )
-
-    fig_hist = px.histogram(
-        pair_logs,
-        x="confidence",
-        nbins=20,
-        title="Confidence Histogram"
-    )
-
-    fig_hist.update_traces(
-        marker_color="#00d4ff"
-    )
-
-    fig_hist.update_layout(
-
-        paper_bgcolor="#020617",
-        plot_bgcolor="#020617",
-
-        font=dict(
-            family="Inter",
-            size=16,
-            color="white"
+        st.plotly_chart(
+            fig_cam,
+            use_container_width=True
         )
-    )
 
-    st.plotly_chart(
-        fig_hist,
-        use_container_width=True
-    )
+    else:
 
-    # =====================================================
-    # PIE CHART
-    # =====================================================
-
-    st.markdown(
-        "<div class='section-title'>📈 Pair Status Distribution</div>",
-        unsafe_allow_html=True
-    )
-
-    status_counts = (
-        pair_logs["status"]
-        .value_counts()
-        .reset_index()
-    )
-
-    status_counts.columns = [
-        "status",
-        "count"
-    ]
-
-    fig_pie = px.pie(
-        status_counts,
-        names="status",
-        values="count",
-        hole=0.45
-    )
-
-    fig_pie.update_layout(
-
-        paper_bgcolor="#020617",
-        plot_bgcolor="#020617",
-
-        font=dict(
-            family="Inter",
-            size=16,
-            color="white"
+        st.warning(
+            "No valid camera trajectory available."
         )
-    )
-
-    st.plotly_chart(
-        fig_pie,
-        use_container_width=True
-    )
 
     # =====================================================
-    # TABLE
+    # PAIR STATISTICS
     # =====================================================
+
+    pair_log_path = os.path.join(
+        "output",
+        "pair_logs.csv"
+    )
 
     st.markdown(
         "<div class='section-title'>📋 Pair Statistics</div>",
         unsafe_allow_html=True
     )
 
-    st.dataframe(
-        pair_logs,
-        use_container_width=True
-    )
+    if os.path.exists(pair_log_path):
+
+        try:
+
+            pair_logs = pd.read_csv(
+                pair_log_path
+            )
+
+        except pd.errors.EmptyDataError:
+
+            pair_logs = pd.DataFrame()
+
+    else:
+
+        pair_logs = pd.DataFrame()
+
+    if not pair_logs.empty:
+
+        st.dataframe(
+            pair_logs,
+            use_container_width=True
+        )
+
+        # ================================================
+        # CONFIDENCE HISTOGRAM
+        # ================================================
+
+        if (
+            "confidence" in pair_logs.columns
+            and pair_logs["confidence"].notna().any()
+        ):
+
+            st.markdown(
+                "<div class='section-title'>📊 Confidence Distribution</div>",
+                unsafe_allow_html=True
+            )
+
+            fig_hist = px.histogram(
+                pair_logs,
+                x="confidence",
+                nbins=20,
+                title="Confidence Histogram"
+            )
+
+            fig_hist.update_layout(
+                paper_bgcolor="#020617",
+                plot_bgcolor="#020617",
+                font=dict(
+                    family="Inter",
+                    size=16,
+                    color="white"
+                )
+            )
+
+            st.plotly_chart(
+                fig_hist,
+                use_container_width=True
+            )
+
+        # ================================================
+        # STATUS PIE
+        # ================================================
+
+        if (
+            "status" in pair_logs.columns
+            and pair_logs["status"].notna().any()
+        ):
+
+            st.markdown(
+                "<div class='section-title'>📈 Pair Status Distribution</div>",
+                unsafe_allow_html=True
+            )
+
+            status_counts = (
+                pair_logs["status"]
+                .value_counts()
+                .reset_index()
+            )
+
+            status_counts.columns = [
+                "status",
+                "count"
+            ]
+
+            fig_pie = px.pie(
+                status_counts,
+                names="status",
+                values="count",
+                hole=0.45
+            )
+
+            fig_pie.update_layout(
+                paper_bgcolor="#020617",
+                plot_bgcolor="#020617",
+                font=dict(
+                    family="Inter",
+                    size=16,
+                    color="white"
+                )
+            )
+
+            st.plotly_chart(
+                fig_pie,
+                use_container_width=True
+            )
+
+    else:
+
+        st.info(
+            "Detailed pair statistics are not "
+            "available in the current Stage-1 pipeline."
+        )
 
     # =====================================================
-    # SUMMARY
+    # RECONSTRUCTION SUMMARY
     # =====================================================
 
     st.markdown(
@@ -855,21 +771,69 @@ if (
         unsafe_allow_html=True
     )
 
-    st.markdown(f"""
+    input_images = int(
+        analytics.get(
+            "total_input_images",
+            len(uploaded_files)
+        )
+    )
+
+    registered_images = int(
+        analytics.get(
+            "registered_images",
+            len(cameras)
+        )
+    )
+
+    registration_ratio = float(
+        analytics.get(
+            "registration_ratio",
+            (
+                registered_images
+                / max(input_images, 1)
+                * 100.0
+            )
+        )
+    )
+
+    sparse_points = int(
+        analytics.get(
+            "total_sparse_points",
+            0
+        )
+    )
+
+    dense_points = int(
+        analytics.get(
+            "total_dense_points",
+            0
+        )
+    )
+
+    health_score = float(
+        analytics.get(
+            "health_score",
+            registration_ratio
+        )
+    )
+
+    st.markdown(
+        f"""
 ### Final Reconstruction Statistics
 
-- Uploaded Images: **{len(uploaded_files)}**
-- Generated 3D Points: **{len(points):,}**
-- Camera Positions: **{len(cameras)}**
-- Successful Pairs: **{analytics["successful_pairs"]}**
-- Failed Pairs: **{analytics["failed_pairs"]}**
-- Average Confidence: **{analytics.get("avg_confidence", 100.0):.2f}%**
-- Average Inliers: **{analytics["avg_inliers"]}**
-- Average Points: **{analytics["avg_points"]}**
-- Health Score: **{analytics["health_score"]:.2f}%**
-- Processing Time: **{processing_time:.2f} sec**
-- Reconstruction Type: **Global SfM + Bundle Adjustment**
-- Feature Detector: **SIFT**
-- Matcher: **FLANN**
-- Parallel Processing: **Enabled**
-""")
+- Input Images: **{input_images:,}**
+- COLMAP Registered Images: **{registered_images:,}**
+- Registration Ratio: **{registration_ratio:.2f}%**
+- Sparse Points: **{sparse_points:,}**
+- Dense Points Generated: **{dense_points:,}**
+- Final Cleaned Points: **{len(points):,}**
+- Camera Positions: **{len(cameras):,}**
+- Registration Health Score: **{health_score:.2f}%**
+- Reconstruction Stage Time: **{processing_time:.2f} sec**
+- COLMAP Time: **{colmap_time:.2f} sec**
+- Dense + Cleaning + Mesh Time: **{reconstruction_time:.2f} sec**
+- **Total Pipeline Time: {total_pipeline_time:.2f} sec**
+- Sparse Reconstruction: **COLMAP SfM + Bundle Adjustment**
+- Dense Reconstruction: **Stage-1 StereoSGBM Prototype**
+"""
+    )

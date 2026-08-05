@@ -7,8 +7,15 @@ class DenseReconstructor:
 
     def __init__(self):
 
-        self.dense_points = []
-        self.dense_colors = []
+        self.dense_points = np.empty(
+            (0, 3),
+            dtype=np.float64
+        )
+
+        self.dense_colors = np.empty(
+            (0, 3),
+            dtype=np.float64
+        )
 
     # =====================================================
     # DENSE POINT CLOUD GENERATION
@@ -22,115 +29,666 @@ class DenseReconstructor:
         global_rotations=None,
         global_translations=None
     ):
-        print("\n===== CAMERA TRANSFORM DEBUG =====")
 
-        if global_rotations is not None:
-            print(
-                "Rotations:",
-                len(global_rotations)
-            )
+        print(
+            "\n========== DENSE RECONSTRUCTION =========="
+        )
 
-        if global_translations is not None:
-            print(
-                "Translations:",
-                len(global_translations)
-            )
-
-        print("===============================\n")
-
-        print("\n========== DENSE RECONSTRUCTION ==========")
+        # =================================================
+        # INPUT VALIDATION
+        # =================================================
 
         if len(images) < 2:
-            print("Not enough images")
+
+            print(
+                "[DENSE] Not enough images"
+            )
+
             return None
+
+        camera_poses = np.asarray(
+            camera_poses,
+            dtype=np.float64
+        )
+
+        K_original = np.asarray(
+            intrinsic_matrix,
+            dtype=np.float64
+        )
+
+        if K_original.shape != (3, 3):
+
+            raise ValueError(
+                "intrinsic_matrix must be 3x3"
+            )
+
+        if len(camera_poses) != len(images):
+
+            raise ValueError(
+                "Number of camera poses must match images"
+            )
+
+        # =================================================
+        # COLMAP TRANSFORMS REQUIRED
+        # =================================================
+
+        use_colmap_transforms = (
+            global_rotations is not None
+            and global_translations is not None
+        )
+
+        if not use_colmap_transforms:
+
+            raise ValueError(
+                "Dense reconstruction requires COLMAP "
+                "rotations and translations."
+            )
+
+        global_rotations = np.asarray(
+            global_rotations,
+            dtype=np.float64
+        )
+
+        global_translations = np.asarray(
+            global_translations,
+            dtype=np.float64
+        )
+
+        if (
+            len(global_rotations) != len(images)
+            or
+            len(global_translations) != len(images)
+        ):
+
+            raise ValueError(
+                "COLMAP R/t count must match images"
+            )
+
+        print(
+            f"[DENSE] Images: {len(images)}"
+        )
+
+        print(
+            f"[DENSE] Camera poses: {len(camera_poses)}"
+        )
+
+        print(
+            "[DENSE] Using COLMAP transforms: True"
+        )
+
+        # =================================================
+        # PARAMETERS
+        # =================================================
+
+        MAX_WIDTH = 1600
+
+        MIN_BASELINE = 1e-6
+
+        SAMPLE_STEP = 4
+
+        MAX_DENSE_POINTS = 2_000_000
 
         all_points = []
         all_colors = []
 
+        successful_pairs = 0
+        failed_pairs = 0
+
         max_pairs = min(
-        len(images) - 1,
-        len(camera_poses) - 1
+            len(images) - 1,
+            len(camera_poses) - 1
         )
+
+        # =================================================
+        # PROCESS CONSECUTIVE PAIRS
+        # =================================================
+        #
+        # NOTE:
+        # Pair selection is intentionally still consecutive.
+        # We will audit and improve pair selection after
+        # validating the rectified stereo geometry.
+        # =================================================
 
         for i in range(max_pairs):
 
             try:
 
+                print(
+                    f"\n[DENSE] Processing pair "
+                    f"{i}-{i + 1}"
+                )
+
                 img1 = images[i]
                 img2 = images[i + 1]
 
-                print(f"\nProcessing dense pair {i}-{i+1}")
+                # =========================================
+                # IMAGE VALIDATION
+                # =========================================
+
+                if img1 is None or img2 is None:
+
+                    print(
+                        "[DENSE] Invalid image pair"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                if img1.shape[:2] != img2.shape[:2]:
+
+                    print(
+                        "[DENSE] Pair has different "
+                        "image dimensions; skipping"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                # =========================================
+                # CAMERA-CENTER BASELINE
+                # =========================================
+
+                camera_center_baseline = float(
+                    np.linalg.norm(
+                        camera_poses[i + 1]
+                        - camera_poses[i]
+                    )
+                )
+
+                print(
+                    "[DENSE] Camera-center baseline: "
+                    f"{camera_center_baseline:.6f}"
+                )
+
+                if (
+                    not np.isfinite(
+                        camera_center_baseline
+                    )
+                    or
+                    camera_center_baseline
+                    <= MIN_BASELINE
+                ):
+
+                    print(
+                        "[DENSE] Camera-center baseline "
+                        "too small or invalid"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                # =========================================
+                # RESIZE IMAGES
+                # =========================================
+
+                working_img1 = img1
+                working_img2 = img2
+
+                original_h, original_w = (
+                    img1.shape[:2]
+                )
+
+                scale = 1.0
+
+                if original_w > MAX_WIDTH:
+
+                    scale = (
+                        MAX_WIDTH
+                        / float(original_w)
+                    )
+
+                    new_width = int(
+                        round(
+                            original_w * scale
+                        )
+                    )
+
+                    new_height = int(
+                        round(
+                            original_h * scale
+                        )
+                    )
+
+                    working_img1 = cv2.resize(
+                        img1,
+                        (
+                            new_width,
+                            new_height
+                        ),
+                        interpolation=cv2.INTER_AREA
+                    )
+
+                    working_img2 = cv2.resize(
+                        img2,
+                        (
+                            new_width,
+                            new_height
+                        ),
+                        interpolation=cv2.INTER_AREA
+                    )
+
+                # =========================================
+                # SCALE CAMERA INTRINSICS
+                # =========================================
+
+                K = K_original.copy()
+
+                K[0, 0] *= scale
+                K[1, 1] *= scale
+
+                K[0, 2] *= scale
+                K[1, 2] *= scale
+
+                fx = float(
+                    K[0, 0]
+                )
+
+                fy = float(
+                    K[1, 1]
+                )
+
+                if (
+                    not np.isfinite(fx)
+                    or
+                    not np.isfinite(fy)
+                    or
+                    fx <= 0
+                    or
+                    fy <= 0
+                ):
+
+                    print(
+                        "[DENSE] Invalid focal length"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                # =========================================
+                # COLMAP CAMERA EXTRINSICS
+                # =========================================
+
+                R_cam1 = np.asarray(
+                    global_rotations[i],
+                    dtype=np.float64
+                )
+
+                t_cam1 = np.asarray(
+                    global_translations[i],
+                    dtype=np.float64
+                ).reshape(3)
+
+                R_cam2 = np.asarray(
+                    global_rotations[i + 1],
+                    dtype=np.float64
+                )
+
+                t_cam2 = np.asarray(
+                    global_translations[i + 1],
+                    dtype=np.float64
+                ).reshape(3)
+
+                if (
+                    R_cam1.shape != (3, 3)
+                    or
+                    R_cam2.shape != (3, 3)
+                ):
+
+                    raise ValueError(
+                        "Invalid COLMAP rotation matrix"
+                    )
+
+                if (
+                    not np.all(
+                        np.isfinite(R_cam1)
+                    )
+                    or
+                    not np.all(
+                        np.isfinite(R_cam2)
+                    )
+                    or
+                    not np.all(
+                        np.isfinite(t_cam1)
+                    )
+                    or
+                    not np.all(
+                        np.isfinite(t_cam2)
+                    )
+                ):
+
+                    print(
+                        "[DENSE] Invalid COLMAP "
+                        "camera transform"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                # =========================================
+                # RELATIVE CAMERA GEOMETRY
+                # =========================================
+                #
+                # COLMAP:
+                #
+                # X1 = R1 Xw + t1
+                # X2 = R2 Xw + t2
+                #
+                # Therefore:
+                #
+                # X2 =
+                # (R2 R1^T) X1
+                # +
+                # (t2 - R2 R1^T t1)
+                # =========================================
+
+                R_relative = (
+                    R_cam2
+                    @ R_cam1.T
+                )
+
+                T_relative = (
+                    t_cam2
+                    - R_relative @ t_cam1
+                )
+
+                relative_baseline = float(
+                    np.linalg.norm(
+                        T_relative
+                    )
+                )
+
+                print(
+                    "[DENSE] Relative baseline: "
+                    f"{relative_baseline:.6f}"
+                )
+                # =========================================
+                # GEOMETRY DIAGNOSTICS
+                # =========================================
+
+                print(
+                    "[DEBUG-GEOM] T_relative: "
+                    f"{T_relative}"
+                )
+
+                print(
+                    "[DEBUG-GEOM] R_relative:\n"
+                    f"{R_relative}"
+                )
+
+                if (
+                    not np.isfinite(
+                        relative_baseline
+                    )
+                    or
+                    relative_baseline
+                    <= MIN_BASELINE
+                ):
+
+                    print(
+                        "[DENSE] Relative baseline "
+                        "too small or invalid"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                # =========================================
+                # STEREO RECTIFICATION
+                # =========================================
+
+                h, w = (
+                    working_img1.shape[:2]
+                )
+
+                image_size = (
+                    w,
+                    h
+                )
+
+                # Stage-2 assumption:
+                # zero distortion.
+                #
+                # Later we can pass the actual COLMAP
+                # distortion coefficients when auditing
+                # camera models.
+                dist_coeffs = np.zeros(
+                    5,
+                    dtype=np.float64
+                )
+
+                (
+                    R_rect1,
+                    R_rect2,
+                    P_rect1,
+                    P_rect2,
+                    Q,
+                    roi1,
+                    roi2
+                ) = cv2.stereoRectify(
+
+                    K,
+                    dist_coeffs,
+
+                    K,
+                    dist_coeffs,
+
+                    image_size,
+
+                    R_relative,
+                    T_relative,
+
+                    flags=cv2.CALIB_ZERO_DISPARITY,
+
+                    alpha=0
+                )
+                print(
+                    "[DEBUG-GEOM] P_rect1:\n"
+                    f"{P_rect1}"
+                )
+
+                print(
+                    "[DEBUG-GEOM] P_rect2:\n"
+                    f"{P_rect2}"
+                )
+
+                print(
+                    "[DEBUG-GEOM] Q:\n"
+                    f"{Q}"
+                )
+
+                # =========================================
+                # DETECT RECTIFIED STEREO ORIENTATION
+                # =========================================
+
+                rectified_tx = float(
+                    P_rect2[0, 3]
+                )
+
+                rectified_ty = float(
+                    P_rect2[1, 3]
+                )
+
+                print(
+                    "[DEBUG-GEOM] Rectified Tx term: "
+                    f"{rectified_tx:.6f}"
+                )
+
+                print(
+                    "[DEBUG-GEOM] Rectified Ty term: "
+                    f"{rectified_ty:.6f}"
+                )
+
+                # StereoSGBM searches along image rows.
+                # Therefore, for this Stage-3 test we only
+                # accept horizontally rectified stereo pairs.
+                is_horizontal_stereo = (
+                    abs(rectified_tx)
+                    >= abs(rectified_ty)
+                )
+
+                if not is_horizontal_stereo:
+
+                    print(
+                        "[DENSE] Vertical stereo pair detected; "
+                        "skipping pair for Stage-3"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                if abs(rectified_tx) <= 1e-9:
+
+                    print(
+                        "[DENSE] Invalid horizontal rectified "
+                        "baseline; skipping pair"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                print(
+                    "[DENSE] Stereo orientation: HORIZONTAL"
+                )
+
+                # =========================================
+                # VALIDATE RECTIFICATION MATRICES
+                # =========================================
+
+                if (
+                    not np.all(
+                        np.isfinite(R_rect1)
+                    )
+                    or
+                    not np.all(
+                        np.isfinite(R_rect2)
+                    )
+                    or
+                    not np.all(
+                        np.isfinite(Q)
+                    )
+                ):
+
+                    print(
+                        "[DENSE] Invalid rectification "
+                        "matrices"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                # =========================================
+                # BUILD RECTIFICATION MAPS
+                # =========================================
+
+                map1_x, map1_y = (
+                    cv2.initUndistortRectifyMap(
+
+                        K,
+                        dist_coeffs,
+
+                        R_rect1,
+                        P_rect1,
+
+                        image_size,
+
+                        cv2.CV_32FC1
+                    )
+                )
+
+                map2_x, map2_y = (
+                    cv2.initUndistortRectifyMap(
+
+                        K,
+                        dist_coeffs,
+
+                        R_rect2,
+                        P_rect2,
+
+                        image_size,
+
+                        cv2.CV_32FC1
+                    )
+                )
+
+                # =========================================
+                # RECTIFY IMAGES
+                # =========================================
+
+                rectified_img1 = cv2.remap(
+
+                    working_img1,
+
+                    map1_x,
+                    map1_y,
+
+                    interpolation=cv2.INTER_LINEAR,
+
+                    borderMode=cv2.BORDER_CONSTANT
+                )
+
+                rectified_img2 = cv2.remap(
+
+                    working_img2,
+
+                    map2_x,
+                    map2_y,
+
+                    interpolation=cv2.INTER_LINEAR,
+
+                    borderMode=cv2.BORDER_CONSTANT
+                )
 
                 gray1 = cv2.cvtColor(
-                    img1,
+                    rectified_img1,
                     cv2.COLOR_BGR2GRAY
                 )
 
                 gray2 = cv2.cvtColor(
-                    img2,
+                    rectified_img2,
                     cv2.COLOR_BGR2GRAY
                 )
-                # =====================================
-                # DOWNSAMPLE FOR DENSE RECONSTRUCTION
-                # =====================================
 
-                MAX_WIDTH = 1600
+                # =========================================
+                # STEREO SGBM
+                # =========================================
 
-                if gray1.shape[1] > MAX_WIDTH:
+                block_size = 5
 
-                    scale = MAX_WIDTH / gray1.shape[1]
+                NUM_DISPARITIES = 128
 
-                    gray1 = cv2.resize(
-                        gray1,
-                        None,
-                        fx=scale,
-                        fy=scale
-                    )
+                # Decide which disparity direction to search
 
-                    gray2 = cv2.resize(
-                        gray2,
-                        None,
-                        fx=scale,
-                        fy=scale
-                    )
+                if rectified_tx < 0.0:
 
-                    img1 = cv2.resize(
-                        img1,
-                        None,
-                        fx=scale,
-                        fy=scale
-                    )
-
-                    img2 = cv2.resize(
-                        img2,
-                        None,
-                        fx=scale,
-                        fy=scale
-                    )
-
-                    focal_length = (
-                        intrinsic_matrix[0, 0] * scale
-                    )
+                    min_disparity = 0
+                    expected_disparity_sign = "positive"
 
                 else:
 
-                    focal_length = intrinsic_matrix[0, 0]                
+                    min_disparity = -NUM_DISPARITIES
+                    expected_disparity_sign = "negative"
 
-                # =====================================================
-                # STEREO MATCHER
-                # =====================================================
+                print(
+                    "[DENSE] Expected disparity sign: "
+                    f"{expected_disparity_sign}"
+                )
+
+                print(
+                    "[DENSE] SGBM minDisparity: "
+                    f"{min_disparity}"
+                )
 
                 stereo = cv2.StereoSGBM_create(
 
-                    minDisparity=0,
+                    minDisparity=min_disparity,
 
-                    numDisparities=128,
+                    numDisparities=NUM_DISPARITIES,
 
-                    blockSize=5,
+                    blockSize=block_size,
 
-                    P1=8 * 3 * 5**2,
+                    P1=8 * block_size * block_size,
 
-                    P2=32 * 3 * 5**2,
+                    P2=32 * block_size * block_size,
 
                     disp12MaxDiff=1,
 
@@ -138,191 +696,524 @@ class DenseReconstructor:
 
                     speckleWindowSize=50,
 
-                    speckleRange=2
+                    speckleRange=2,
+
+                    mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
                 )
 
                 disparity = stereo.compute(
                     gray1,
                     gray2
-                ).astype(np.float32) / 16.0
-
-                disparity[disparity <= 0] = np.nan
-
-                h, w = gray1.shape
-
-                
-
-                baseline = np.linalg.norm(
-                    camera_poses[i + 1] -
-                    camera_poses[i]
-                )
-                print(
-                    f"Pair {i}-{i+1} Baseline = {baseline:.4f}"
-                )
-
-                baseline = max(baseline, 0.01)                
-
-                depth = (
-                    focal_length * baseline
-                ) / disparity
-                depth = np.clip(
-                        depth,
-                        0.05,
-                        20.0
-                    )
-                depth = np.nan_to_num(
-                    depth,
-                    nan=0.0,
-                    posinf=0.0,
-                    neginf=0.0
-                )
-                valid_depths = depth[
-                    np.isfinite(depth)
+                ).astype(
+                    np.float32
+                ) / 16.0
+                finite_disparities = disparity[
+                    np.isfinite(disparity)
                 ]
 
-                print(
-                    f"Depth Range: "
-                    f"{valid_depths.min():.3f} -> "
-                    f"{valid_depths.max():.3f}"
-                )
-                points = []
-                colors = []
-
-                # =====================================================
-                # GENERATE 3D POINTS
-                # =====================================================
-
-                for y in range(0, h, 4):
-
-                    for x in range(0, w, 4):
-
-                        z = depth[y, x]
-                        if z < 0.1:
-                            continue
-
-                        if (
-                            z <= 0 or
-                            z > 20.0 or
-                            np.isnan(z) or
-                            np.isinf(z)
-                        ):
-                            continue
-
-                        X = (
-                            (x - intrinsic_matrix[0, 2])
-                            * z / focal_length
-                        )
-
-                        Y = (
-                            (y - intrinsic_matrix[1, 2])
-                            * z / focal_length
-                        )
-
-                        local_point = np.array([
-                            X,
-                            Y,
-                            z
-                        ])
-
-                        if (
-                            global_rotations is not None and
-                            global_translations is not None and
-                            i in global_rotations and
-                            i in global_translations
-                        ):
-
-                            R = global_rotations[i]
-
-                            t = global_translations[i].flatten()
-
-                            world_point = (
-                                R @ local_point
-                            ) + t
-
-                            points.append(
-                                world_point
-                            )
-
-                        else:
-
-                            points.append(
-                                local_point
-                            )
-
-                        bgr = img1[y, x]
-
-                        rgb = [
-                            bgr[2] / 255.0,
-                            bgr[1] / 255.0,
-                            bgr[0] / 255.0
-                        ]
-
-                        colors.append(rgb)
-
-                if len(points) > 0:
-
-                    all_points.extend(points)
-                    all_colors.extend(colors)
+                if finite_disparities.size > 0:
 
                     print(
-                        f"Generated {len(points)} dense points"
+                        "[DEBUG-STEREO] Disparity range: "
+                        f"{finite_disparities.min():.4f}"
+                        " -> "
+                        f"{finite_disparities.max():.4f}"
                     )
+
+                    positive_disp_count = int(
+                        np.count_nonzero(
+                            finite_disparities > 0.0
+                        )
+                    )
+
+                    negative_disp_count = int(
+                        np.count_nonzero(
+                            finite_disparities < 0.0
+                        )
+                    )
+
+                    zero_disp_count = int(
+                        np.count_nonzero(
+                            finite_disparities == 0.0
+                        )
+                    )
+
+                    print(
+                        "[DEBUG-STEREO] Positive disparities: "
+                        f"{positive_disp_count:,}"
+                    )
+
+                    print(
+                        "[DEBUG-STEREO] Negative disparities: "
+                        f"{negative_disp_count:,}"
+                    )
+
+                    print(
+                        "[DEBUG-STEREO] Zero disparities: "
+                        f"{zero_disp_count:,}"
+                    )
+
+
+
+                    # =========================================
+                    # VALID DISPARITY USING EXPECTED SIGN
+                    # =========================================
+
+                    if rectified_tx < 0.0:
+
+                        valid_disparity = (
+                            np.isfinite(disparity)
+                            &
+                            (disparity > 0.0)
+                        )
+
+                    else:
+
+                        # For negative-disparity stereo,
+                        # OpenCV's invalid value is normally
+                        # below minDisparity. Keep only the
+                        # searched negative-disparity range.
+
+                        valid_disparity = (
+                            np.isfinite(disparity)
+                            &
+                            (disparity < 0.0)
+                            &
+                            (disparity >= min_disparity)
+                        )
+
+                valid_disparity_count = int(
+                    np.count_nonzero(
+                        valid_disparity
+                    )
+                )
+
+                print(
+                    "[DENSE] Valid disparity pixels: "
+                    f"{valid_disparity_count:,}"
+                )
+
+                if valid_disparity_count == 0:
+
+                    print(
+                        "[DENSE] No valid disparity"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                # =========================================
+                # DISPARITY -> RECTIFIED 3D
+                # =========================================
+
+                points_rectified = (
+                    cv2.reprojectImageTo3D(
+                        disparity,
+                        Q
+                    )
+                )
+
+                finite_xyz = np.all(
+                    np.isfinite(
+                        points_rectified
+                    ),
+                    axis=2
+                )
+
+                rectified_depth = (
+                    points_rectified[:, :, 2]
+                )
+                finite_depth = rectified_depth[
+                    np.isfinite(rectified_depth)
+                ]
+
+                if finite_depth.size > 0:
+
+                    print(
+                        "[DEBUG-DEPTH] Z range: "
+                        f"{finite_depth.min():.4f}"
+                        " -> "
+                        f"{finite_depth.max():.4f}"
+                    )
+
+                    positive_z_count = int(
+                        np.count_nonzero(
+                            finite_depth > 0.0
+                        )
+                    )
+
+                    negative_z_count = int(
+                        np.count_nonzero(
+                            finite_depth < 0.0
+                        )
+                    )
+
+                    print(
+                        "[DEBUG-DEPTH] Positive Z: "
+                        f"{positive_z_count:,}"
+                    )
+
+                    print(
+                        "[DEBUG-DEPTH] Negative Z: "
+                        f"{negative_z_count:,}"
+                    )
+
+                # =========================================
+                # VALID 3D MASK
+                # =========================================
+                #
+                # No fixed MIN_DEPTH / MAX_DEPTH here.
+                #
+                # COLMAP's reconstruction scale is not
+                # guaranteed to be metric.
+                # =========================================
+
+                valid_3d = (
+                    valid_disparity
+                    &
+                    finite_xyz
+                    &
+                    np.isfinite(
+                        rectified_depth
+                    )
+                    &
+                    (rectified_depth > 0.0)
+                )
+
+                valid_3d_count = int(
+                    np.count_nonzero(
+                        valid_3d
+                    )
+                )
+
+                print(
+                    "[DENSE] Valid 3D pixels: "
+                    f"{valid_3d_count:,}"
+                )
+
+                if valid_3d_count == 0:
+
+                    print(
+                        "[DENSE] No valid 3D points"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                valid_depth_values = (
+                    rectified_depth[
+                        valid_3d
+                    ]
+                )
+
+                print(
+                    "[DENSE] Rectified depth range: "
+                    f"{valid_depth_values.min():.4f}"
+                    " -> "
+                    f"{valid_depth_values.max():.4f}"
+                )
+
+                # =========================================
+                # GENERATE WORLD-SPACE POINTS
+                # =========================================
+
+                pair_points = []
+                pair_colors = []
+
+                for y in range(
+                    0,
+                    h,
+                    SAMPLE_STEP
+                ):
+
+                    for x in range(
+                        0,
+                        w,
+                        SAMPLE_STEP
+                    ):
+
+                        if not valid_3d[y, x]:
+                            continue
+
+                        # ---------------------------------
+                        # RECTIFIED CAMERA-1 COORDINATES
+                        # ---------------------------------
+
+                        point_rectified = np.asarray(
+                            points_rectified[
+                                y,
+                                x
+                            ],
+                            dtype=np.float64
+                        )
+
+                        if not np.all(
+                            np.isfinite(
+                                point_rectified
+                            )
+                        ):
+
+                            continue
+
+                        # ---------------------------------
+                        # UNDO RECTIFICATION
+                        # ---------------------------------
+                        #
+                        # X_rect =
+                        # R_rect1 X_camera1
+                        #
+                        # Therefore:
+                        #
+                        # X_camera1 =
+                        # R_rect1^T X_rect
+                        # ---------------------------------
+
+                        point_camera1 = (
+                            R_rect1.T
+                            @ point_rectified
+                        )
+
+                        # ---------------------------------
+                        # CAMERA-1 -> COLMAP WORLD
+                        # ---------------------------------
+                        #
+                        # COLMAP:
+                        #
+                        # X_camera1 =
+                        # R_cam1 X_world + t_cam1
+                        #
+                        # Therefore:
+                        #
+                        # X_world =
+                        # R_cam1^T
+                        # (X_camera1 - t_cam1)
+                        # ---------------------------------
+
+                        point_world = (
+                            R_cam1.T
+                            @ (
+                                point_camera1
+                                - t_cam1
+                            )
+                        )
+
+                        if not np.all(
+                            np.isfinite(
+                                point_world
+                            )
+                        ):
+
+                            continue
+
+                        pair_points.append(
+                            point_world
+                        )
+
+                        # x/y correspond to the rectified
+                        # image, so sample color there.
+                        bgr = rectified_img1[
+                            y,
+                            x
+                        ]
+
+                        pair_colors.append([
+                            float(
+                                bgr[2]
+                            ) / 255.0,
+
+                            float(
+                                bgr[1]
+                            ) / 255.0,
+
+                            float(
+                                bgr[0]
+                            ) / 255.0
+                        ])
+
+                # =========================================
+                # STORE PAIR
+                # =========================================
+
+                if len(pair_points) == 0:
+
+                    print(
+                        "[DENSE] Pair produced no "
+                        "usable world-space points"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                all_points.extend(
+                    pair_points
+                )
+
+                all_colors.extend(
+                    pair_colors
+                )
+
+                successful_pairs += 1
+
+                print(
+                    "[DENSE] Generated "
+                    f"{len(pair_points):,} points"
+                )
+
+            except cv2.error as e:
+
+                failed_pairs += 1
+
+                print(
+                    f"[DENSE] OpenCV error for pair "
+                    f"{i}-{i + 1}: {e}"
+                )
 
             except Exception as e:
 
+                failed_pairs += 1
+
                 print(
-                    f"Dense reconstruction error: {str(e)}"
+                    f"[DENSE] Pair "
+                    f"{i}-{i + 1} failed: {e}"
                 )
+
+        # =================================================
+        # FINALIZE DENSE CLOUD
+        # =================================================
 
         if len(all_points) == 0:
 
-            print("No dense points generated")
+            print(
+                "\n[DENSE] No dense points generated"
+            )
+
             return None
 
-        # =====================================================
-        # CONVERT TO NUMPY
-        # =====================================================
+        self.dense_points = np.asarray(
+            all_points,
+            dtype=np.float64
+        )
 
-        self.dense_points = np.array(all_points)
+        self.dense_colors = np.asarray(
+            all_colors,
+            dtype=np.float64
+        )
 
-        self.dense_colors = np.array(all_colors)
+        # =================================================
+        # REMOVE INVALID VALUES
+        # =================================================
 
-        # =====================================================
-        # LIMIT DENSE POINTS
-        # =====================================================
+        finite_mask = (
+            np.all(
+                np.isfinite(
+                    self.dense_points
+                ),
+                axis=1
+            )
+            &
+            np.all(
+                np.isfinite(
+                    self.dense_colors
+                ),
+                axis=1
+            )
+        )
 
-        if len(self.dense_points) > 2000000:
+        self.dense_points = (
+            self.dense_points[
+                finite_mask
+            ]
+        )
 
-            print("\nReducing dense cloud size...")
+        self.dense_colors = (
+            self.dense_colors[
+                finite_mask
+            ]
+        )
 
-            indices = np.random.choice(
+        self.dense_colors = np.clip(
+            self.dense_colors,
+            0.0,
+            1.0
+        )
+
+        # =================================================
+        # MEMORY LIMIT
+        # =================================================
+
+        if (
+            len(self.dense_points)
+            > MAX_DENSE_POINTS
+        ):
+
+            print(
+                "\n[DENSE] Reducing dense cloud "
+                f"from {len(self.dense_points):,} "
+                f"to {MAX_DENSE_POINTS:,} points"
+            )
+
+            rng = np.random.default_rng(
+                42
+            )
+
+            indices = rng.choice(
                 len(self.dense_points),
-                2000000,
+                MAX_DENSE_POINTS,
                 replace=False
             )
 
             self.dense_points = (
-                self.dense_points[indices]
+                self.dense_points[
+                    indices
+                ]
             )
 
             self.dense_colors = (
-                self.dense_colors[indices]
+                self.dense_colors[
+                    indices
+                ]
             )
 
-            print(
-                f"Reduced to "
-                f"{len(self.dense_points)} points"
-            )
+        # =================================================
+        # SUMMARY
+        # =================================================
+
         print(
-            f"\nTotal Dense Points: "
-            f"{len(self.dense_points)}"
+            "\n========== DENSE SUMMARY =========="
+        )
+
+        print(
+            "[DENSE] Successful pairs: "
+            f"{successful_pairs}"
+        )
+
+        print(
+            "[DENSE] Failed pairs: "
+            f"{failed_pairs}"
+        )
+
+        print(
+            "[DENSE] Final dense points: "
+            f"{len(self.dense_points):,}"
+        )
+
+        print(
+            "===================================\n"
         )
 
         return {
 
-            "points": self.dense_points,
+            "points":
+                self.dense_points,
 
-            "colors": self.dense_colors
+            "colors":
+                self.dense_colors,
+
+            "successful_pairs":
+                successful_pairs,
+
+            "failed_pairs":
+                failed_pairs
         }
 
     # =====================================================
@@ -332,153 +1223,23 @@ class DenseReconstructor:
     def create_open3d_cloud(self):
 
         if len(self.dense_points) == 0:
+
             return None
 
-        pcd = o3d.geometry.PointCloud()
-
-        pcd.points = o3d.utility.Vector3dVector(
-            self.dense_points
+        pcd = (
+            o3d.geometry.PointCloud()
         )
 
-        pcd.colors = o3d.utility.Vector3dVector(
-            self.dense_colors
+        pcd.points = (
+            o3d.utility.Vector3dVector(
+                self.dense_points
+            )
+        )
+
+        pcd.colors = (
+            o3d.utility.Vector3dVector(
+                self.dense_colors
+            )
         )
 
         return pcd
-
-    # =====================================================
-    # POISSON MESH RECONSTRUCTION
-    # =====================================================
-
-    def create_mesh_from_cloud(self):
-
-        if len(self.dense_points) == 0:
-
-            print("No dense points available")
-
-            return None
-
-        print(
-            "\n========== "
-            "CREATING POISSON SURFACE "
-            "=========="
-        )
-
-        try:
-
-            # =====================================================
-            # CREATE POINT CLOUD
-            # =====================================================
-
-            pcd = o3d.geometry.PointCloud()
-
-            pcd.points = o3d.utility.Vector3dVector(
-                self.dense_points
-            )
-
-            pcd.colors = o3d.utility.Vector3dVector(
-                self.dense_colors
-            )
-
-            # =====================================================
-            # REMOVE OUTLIERS
-            # =====================================================
-
-            print("Removing outliers...")
-
-            pcd, ind = pcd.remove_statistical_outlier(
-                nb_neighbors=20,
-                std_ratio=2.0
-            )
-
-            # =====================================================
-            # VOXEL DOWNSAMPLE
-            # =====================================================
-
-            print("Downsampling cloud...")
-
-            pcd = pcd.voxel_down_sample(
-                voxel_size=0.01
-            )
-
-            # =====================================================
-            # NORMAL ESTIMATION
-            # =====================================================
-
-            print("Estimating normals...")
-
-            pcd.estimate_normals(
-
-                search_param=o3d.geometry.
-                KDTreeSearchParamHybrid(
-
-                    radius=0.05,
-
-                    max_nn=20,
-                )
-            )
-
-            pcd.orient_normals_consistent_tangent_plane(
-                100
-            )
-
-            # =====================================================
-            # POISSON RECONSTRUCTION
-            # =====================================================
-
-            print("Generating Poisson mesh...")
-
-            mesh, densities = (
-                o3d.geometry.TriangleMesh
-                .create_from_point_cloud_poisson(
-
-                    pcd,
-
-                    depth=7
-                )
-            )
-
-            # =====================================================
-            # REMOVE LOW DENSITY AREAS
-            # =====================================================
-
-            print("Cleaning mesh...")
-
-            densities = np.asarray(densities)
-
-            density_threshold = np.quantile(
-                densities,
-                0.08
-            )
-
-            vertices_to_remove = (
-                densities < density_threshold
-            )
-
-            mesh.remove_vertices_by_mask(
-                vertices_to_remove
-            )
-
-            # =====================================================
-            # SMOOTH MESH
-            # =====================================================
-
-            print("Smoothing mesh...")
-
-            mesh = mesh.filter_smooth_taubin(
-                number_of_iterations=10
-            )
-
-            mesh.compute_vertex_normals()
-
-            print("\nMesh created successfully")
-
-            return mesh
-
-        except Exception as e:
-
-            print(
-                f"Mesh generation failed: {str(e)}"
-            )
-
-            return None

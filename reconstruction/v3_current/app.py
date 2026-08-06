@@ -11,6 +11,10 @@ from streamlit_autorefresh import st_autorefresh
 from dense_reconstruction import DenseReconstructor
 from ui.styles import load_styles
 from ui.header import show_header
+from ui.input_section import render_input_section
+from ui.dataset_preview import render_dataset_preview
+from ui.reconstruction_controls import render_reconstruction_controls
+from ui.progress_panel import render_progress_panel
 
 
 # =========================================================
@@ -58,216 +62,44 @@ if "reconstruction_done" not in st.session_state:
 # =========================================================
 
 show_header()
+
+
 # =========================================================
 # UPLOAD
 # =========================================================
 
-mode = st.radio(
-    "Input Method",
-    [
-        "Upload Images",
-        "Dataset Folder"
-    ]
-)
-uploaded_files = []
+uploaded_files, mode = render_input_section()
 
-dataset_path = ""
-
-if mode == "Upload Images":
-
-    uploaded_files = st.file_uploader(
-        "📂 Upload Images",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True
-    )
-
-else:
-
-    dataset_path = st.text_input(
-        "Dataset Folder",
-        r"E:\owl_dataset"
-    )
-    if mode == "Dataset Folder":
-
-        if os.path.exists(dataset_path):
-
-            uploaded_files = glob.glob(
-                os.path.join(dataset_path, "*.jpg")
-            )
-
-            uploaded_files += glob.glob(
-                os.path.join(dataset_path, "*.jpeg")
-            )
-
-            uploaded_files += glob.glob(
-                os.path.join(dataset_path, "*.png")
-            )    
-st.write(f"Images Loaded: {len(uploaded_files)}")
 
 # =========================================================
 # IMAGE PREVIEW
 # =========================================================
 
-if uploaded_files:
+render_dataset_preview(uploaded_files, mode)
 
-    st.markdown(
-        "<div class='section-title'>📸 Uploaded Dataset</div>",
-        unsafe_allow_html=True
-    )
-
-    cols = st.columns(4)
-
-    total_size = 0
-
-    for idx, file in enumerate(uploaded_files):
-
-        if mode == "Upload Images":
-
-            size_mb = len(file.getvalue()) / (1024 * 1024)
-
-        else:
-
-            size_mb = os.path.getsize(file) / (1024 * 1024)
-
-        total_size += size_mb
-        if idx < 8:
-
-            if mode == "Upload Images":
-
-                cols[idx % 4].image(
-                    file,
-                    caption=file.name,
-                    use_container_width=True
-                )
-
-            else:
-
-                cols[idx % 4].image(
-                    file,
-                    caption=os.path.basename(file),
-                    use_container_width=True
-                )
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-title">Total Images</div>
-            <div class="metric-value">{len(uploaded_files)}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-title">Dataset Size</div>
-            <div class="metric-value">{total_size:.2f} MB</div>
-        </div>
-        """, unsafe_allow_html=True)
 
 # =========================================================
 # START BUTTON
 # =========================================================
 
-if uploaded_files:
-
-    if not st.session_state.reconstruction_running:
-
-        if st.button("🚀 Start Reconstruction"):
-
-            os.makedirs(TEMP_DIR, exist_ok=True)
-
-            with open(
-                LOG_FILE,
-                "w",
-                encoding="utf-8",
-                errors="ignore"
-            ) as f:
-                f.write("")
-
-            if os.path.exists(STATUS_FILE):
-                os.remove(STATUS_FILE)
-
-            if os.path.exists(RESULT_FILE):
-                os.remove(RESULT_FILE)
-
-            
-            saved_paths = []
-
-            if mode == "Upload Images":
-
-                for file in uploaded_files:
-
-                    save_path = os.path.join(
-                        TEMP_DIR,
-                        file.name
-                    )
-
-                    with open(save_path, "wb") as f:
-                        f.write(file.getbuffer())
-
-                    saved_paths.append(save_path)
-
-            else:
-
-                saved_paths = uploaded_files
-
-
-            with open(IMAGE_PATHS_FILE, "w") as f:
-                json.dump(saved_paths, f)
-
-            subprocess.Popen(
-                ["python", "reconstruction_runner.py"],
-                creationflags=subprocess.CREATE_NEW_CONSOLE
-            )
-
-            st.session_state.reconstruction_running = True
-            st.session_state.reconstruction_done = False
+render_reconstruction_controls(
+    uploaded_files,
+    mode,
+    TEMP_DIR,
+    LOG_FILE,
+    STATUS_FILE,
+    RESULT_FILE,
+    IMAGE_PATHS_FILE
+)
 # =========================================================
 # LIVE LOGS
 # =========================================================
 
-if st.session_state.reconstruction_running:
-
-    st_autorefresh(interval=7000, key="refresh")
-
-    logs = []
-
-    if os.path.exists(LOG_FILE):
-
-        with open(
-            LOG_FILE,
-            "r",
-            encoding="utf-8",
-            errors="ignore"
-        ) as f:
-
-            logs = f.readlines()
-
-    st.markdown(
-        "<div class='section-title'>📜 Live Reconstruction Logs</div>",
-        unsafe_allow_html=True
-    )
-
-    st.text_area(
-        "Reconstruction Progress",
-        "".join(logs[-25:]),
-        height=250,
-        disabled=True
-    )
-
-    if os.path.exists(STATUS_FILE):
-
-        with open(STATUS_FILE, "r") as f:
-            status_data = json.load(f)
-
-        if status_data.get("status") == "COMPLETED":
-
-            st.session_state.reconstruction_running = False
-            st.session_state.reconstruction_done = True
-
-            st.rerun()
+if render_progress_panel(
+    LOG_FILE,
+    STATUS_FILE
+):
+    st.rerun()
 
 # =========================================================
 # RESULTS

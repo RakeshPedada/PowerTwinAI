@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import open3d as o3d
+import gc
 
 
 class DenseReconstructor:
@@ -23,7 +24,7 @@ class DenseReconstructor:
 
     def generate_dense_cloud(
         self,
-        images,
+        image_paths,
         camera_poses,
         intrinsic_matrix,
         global_rotations=None,
@@ -38,7 +39,7 @@ class DenseReconstructor:
         # INPUT VALIDATION
         # =================================================
 
-        if len(images) < 2:
+        if len(image_paths) < 2:
 
             print(
                 "[DENSE] Not enough images"
@@ -62,26 +63,22 @@ class DenseReconstructor:
                 "intrinsic_matrix must be 3x3"
             )
 
-        if len(camera_poses) != len(images):
+        if len(camera_poses) != len(image_paths):
 
             raise ValueError(
-                "Number of camera poses must match images"
+                "Number of camera poses must match image paths"
             )
-
-        # =================================================
-        # COLMAP TRANSFORMS REQUIRED
-        # =================================================
 
         use_colmap_transforms = (
             global_rotations is not None
-            and global_translations is not None
+            and
+            global_translations is not None
         )
 
         if not use_colmap_transforms:
 
             raise ValueError(
-                "Dense reconstruction requires COLMAP "
-                "rotations and translations."
+                "Dense reconstruction requires COLMAP rotations and translations."
             )
 
         global_rotations = np.asarray(
@@ -95,17 +92,17 @@ class DenseReconstructor:
         )
 
         if (
-            len(global_rotations) != len(images)
+            len(global_rotations) != len(image_paths)
             or
-            len(global_translations) != len(images)
+            len(global_translations) != len(image_paths)
         ):
 
             raise ValueError(
-                "COLMAP R/t count must match images"
+                "COLMAP R/t count must match image paths"
             )
 
         print(
-            f"[DENSE] Images: {len(images)}"
+            f"[DENSE] Images: {len(image_paths)}"
         )
 
         print(
@@ -115,27 +112,32 @@ class DenseReconstructor:
         print(
             "[DENSE] Using COLMAP transforms: True"
         )
-
         # =================================================
         # PARAMETERS
         # =================================================
 
-        MAX_WIDTH = 1600
+        MAX_WIDTH = 1400
 
         MIN_BASELINE = 1e-6
 
-        SAMPLE_STEP = 4
+        SAMPLE_STEP = 6
 
-        MAX_DENSE_POINTS = 2_000_000
+        MAX_DENSE_POINTS = 800000
 
-        all_points = []
-        all_colors = []
+# =================================================
+# MEMORY-EFFICIENT STORAGE
+# =================================================
+
+        point_chunks = []
+
+        color_chunks = []
 
         successful_pairs = 0
-        failed_pairs = 0
+
+        failed_pairs = 0        
 
         max_pairs = min(
-            len(images) - 1,
+            len(image_paths) - 1,
             len(camera_poses) - 1
         )
 
@@ -158,32 +160,55 @@ class DenseReconstructor:
                     f"{i}-{i + 1}"
                 )
 
-                img1 = images[i]
-                img2 = images[i + 1]
+                # =========================================
+                # LOAD IMAGES FROM DISK
+                # =========================================
+
+                img1 = cv2.imread(
+                    image_paths[i],
+                    cv2.IMREAD_COLOR
+                )
+
+                img2 = cv2.imread(
+                    image_paths[i + 1],
+                    cv2.IMREAD_COLOR
+                )
+
+                if img1 is None:
+
+                    print(
+                        f"[DENSE] Failed to load:\n"
+                        f"{image_paths[i]}"
+                    )
+
+                    failed_pairs += 1
+                    continue
+
+                if img2 is None:
+
+                    print(
+                        f"[DENSE] Failed to load:\n"
+                        f"{image_paths[i + 1]}"
+                    )
+
+                    failed_pairs += 1
+                    continue
 
                 # =========================================
                 # IMAGE VALIDATION
                 # =========================================
 
-                if img1 is None or img2 is None:
-
-                    print(
-                        "[DENSE] Invalid image pair"
-                    )
-
-                    failed_pairs += 1
-                    continue
-
                 if img1.shape[:2] != img2.shape[:2]:
 
                     print(
-                        "[DENSE] Pair has different "
-                        "image dimensions; skipping"
+                        "[DENSE] Pair has different image dimensions."
                     )
+
+                    del img1
+                    del img2
 
                     failed_pairs += 1
                     continue
-
                 # =========================================
                 # CAMERA-CENTER BASELINE
                 # =========================================
@@ -654,7 +679,7 @@ class DenseReconstructor:
 
                 block_size = 5
 
-                NUM_DISPARITIES = 128
+                NUM_DISPARITIES = 96
 
                 # Decide which disparity direction to search
 
@@ -918,6 +943,7 @@ class DenseReconstructor:
                 # =========================================
 
                 pair_points = []
+
                 pair_colors = []
 
                 for y in range(
@@ -1044,20 +1070,61 @@ class DenseReconstructor:
                     failed_pairs += 1
                     continue
 
-                all_points.extend(
-                    pair_points
+                point_chunks.append(
+                    np.asarray(
+                        pair_points,
+                        dtype=np.float64
+                    )
                 )
 
-                all_colors.extend(
-                    pair_colors
+                color_chunks.append(
+                    np.asarray(
+                        pair_colors,
+                        dtype=np.float64
+                    )
                 )
-
                 successful_pairs += 1
 
                 print(
                     "[DENSE] Generated "
                     f"{len(pair_points):,} points"
                 )
+
+                # =========================================
+                # MEMORY CLEANUP
+                # =========================================
+
+                del pair_points
+                del pair_colors
+
+                del disparity
+
+                del gray1
+                del gray2
+
+                del rectified_img1
+                del rectified_img2
+
+                del map1_x
+                del map1_y
+
+                del map2_x
+                del map2_y
+
+                del working_img1
+                del working_img2
+
+                del stereo
+
+                del points_rectified
+
+                del valid_3d
+
+                del img1
+                del img2
+
+
+                gc.collect()
 
             except cv2.error as e:
 
@@ -1081,7 +1148,7 @@ class DenseReconstructor:
         # FINALIZE DENSE CLOUD
         # =================================================
 
-        if len(all_points) == 0:
+        if len(point_chunks) == 0:
 
             print(
                 "\n[DENSE] No dense points generated"
@@ -1089,16 +1156,16 @@ class DenseReconstructor:
 
             return None
 
-        self.dense_points = np.asarray(
-            all_points,
-            dtype=np.float64
-        )
+        self.dense_points = np.vstack(
+            point_chunks
+        ).astype(np.float64)
 
-        self.dense_colors = np.asarray(
-            all_colors,
-            dtype=np.float64
-        )
+        self.dense_colors = np.vstack(
+            color_chunks
+        ).astype(np.float64)
 
+        point_chunks.clear()
+        color_chunks.clear()
         # =================================================
         # REMOVE INVALID VALUES
         # =================================================

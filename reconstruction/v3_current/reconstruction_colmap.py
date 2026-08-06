@@ -1,7 +1,7 @@
 import os
 import time
 import csv
-
+import gc
 import cv2
 import numpy as np
 import open3d as o3d
@@ -9,7 +9,8 @@ import open3d as o3d
 from dense_reconstruction import DenseReconstructor
 from colmap_loader import load_colmap_model
 from mesh_generator import generate_mesh
-
+from preprocessing.background_removal import BackgroundRemover
+from preprocessing.image_resize import ImageResizer
 
 print("COLMAP RECONSTRUCTION.PY IS RUNNING")
 
@@ -34,16 +35,47 @@ def process_single_image(image_info):
     path = image_info["path"]
     name = image_info["name"]
 
+# Read image
     img = cv2.imread(
         path,
         cv2.IMREAD_COLOR
     )
 
     if img is None:
-        print(
-            f"[WARNING] Failed to load image: {path}"
-        )
+        print(f"[WARNING] Failed to load image: {path}")
         return None
+
+    # -------------------------------------------------
+    # MEMORY OPTIMIZATION
+    # -------------------------------------------------
+    # Large DSLR/mobile images consume huge amounts
+    # of RAM. Downscale them before any processing.
+    # COLMAP has already estimated the poses, so
+    # moderate resizing will not affect pose loading.
+    # -------------------------------------------------
+
+    MAX_IMAGE_WIDTH = 2000
+
+    h, w = img.shape[:2]
+
+    if w > MAX_IMAGE_WIDTH:
+
+        scale = MAX_IMAGE_WIDTH / float(w)
+
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+
+        img = cv2.resize(
+            img,
+            (new_w, new_h),
+            interpolation=cv2.INTER_AREA
+        )
+
+    print(
+        f"[IMAGE] {name}: "
+        f"{w}x{h}  -->  "
+        f"{img.shape[1]}x{img.shape[0]}"
+    )
 
     return {
         "image": img,
@@ -180,37 +212,101 @@ def run_reconstruction(
         "Loading Images."
     )
 
+# =====================================================
+# PREPROCESSING
+# =====================================================
+
+    progress_callback(
+        "Initializing Preprocessing..."
+    )
+
+    background_remover = BackgroundRemover()
+
+    image_resizer = ImageResizer(
+        max_width=1600
+    )
     # =====================================================
     # LOAD INPUT IMAGES
     # =====================================================
 
     processed_data = []
 
-    for idx, image_info in enumerate(uploaded_files):
+    processed_root = os.path.join(
+        "output",
+        "preprocessed"
+    )
 
-        image_data = process_single_image(
-            image_info
+    bg_folder = os.path.join(
+        processed_root,
+        "background_removed"
+    )
+
+    resize_folder = os.path.join(
+        processed_root,
+        "resized"
+    )
+
+    os.makedirs(
+        bg_folder,
+        exist_ok=True
+    )
+
+    os.makedirs(
+        resize_folder,
+        exist_ok=True
+    )
+
+    progress_callback(
+        "Removing Background..."
+    )
+
+    for image_info in uploaded_files:
+
+        input_path = image_info["path"]
+
+        filename = image_info["name"]
+
+        bg_path = os.path.join(
+            bg_folder,
+            filename
         )
 
-        if image_data is None:
-            continue
-
-        processed_data.append(
-            image_data
+        resized_path = os.path.join(
+            resize_folder,
+            filename
         )
 
-        progress_callback(
-            f"Image {idx + 1} processed"
+        background_remover.process_image(
+            input_path,
+            bg_path
         )
 
-    if len(processed_data) < 2:
+        image_resizer.process_image(
+            bg_path,
+            resized_path
+        )
+
+        processed_data.append({
+
+            "name": filename,
+
+            "path": resized_path
+
+        })
+
+    progress_callback(
+        "Preprocessing Complete."
+    )
+    total_input_images = len(processed_data)
+
+    if total_input_images < 2:
 
         raise RuntimeError(
-            "Need at least 2 valid images"
+            "Need at least 2 valid images."
         )
 
-    total_input_images = len(
-        processed_data
+    progress_callback(
+        f"Images Found: {total_input_images}"
     )
 
     # =====================================================
@@ -245,7 +341,7 @@ def run_reconstruction(
     # ALIGN INPUT IMAGES WITH COLMAP POSES
     # =====================================================
 
-    aligned_images = []
+    aligned_image_paths = []
 
     camera_positions = []
 
@@ -275,8 +371,8 @@ def run_reconstruction(
 
             continue
 
-        aligned_images.append(
-            item["image"]
+        aligned_image_paths.append(
+            item["path"]
         )
 
         aligned_names.append(
@@ -303,7 +399,7 @@ def run_reconstruction(
     # VALIDATION
     # =====================================================
 
-    if len(aligned_images) < 2:
+    if len(aligned_image_paths) < 2:
 
         raise RuntimeError(
             "Fewer than 2 input images were registered "
@@ -332,7 +428,7 @@ def run_reconstruction(
 
     progress_callback(
         f"Aligned Images: "
-        f"{len(aligned_images)}/{total_input_images}"
+        f"{len(aligned_image_paths)}/{total_input_images}"
     )
 
     if skipped_names:
@@ -360,7 +456,7 @@ def run_reconstruction(
 
     print(
         "Aligned images:",
-        len(aligned_images)
+        len(aligned_image_paths)
     )
 
     print(
@@ -398,139 +494,40 @@ def run_reconstruction(
     print(
         "==================================\n"
     )
-
     # =====================================================
-    # DENSE RECONSTRUCTION
+    # DENSE RECONSTRUCTION (TEMPORARILY DISABLED)
     # =====================================================
 
     progress_callback(
-        "Running Dense Reconstruction."
+        "Dense Reconstruction skipped (temporary)."
     )
 
-    dense_reconstructor = (
-        DenseReconstructor()
+    dense_points = np.empty(
+        (0, 3),
+        dtype=np.float64
     )
 
-    # -----------------------------------------------------
-    # TEMPORARY STAGE-1 COMPATIBILITY
-    # -----------------------------------------------------
-    #
-    # Current DenseReconstructor accepts one intrinsic
-    # matrix for the full sequence.
-    #
-    # For the current owl dataset COLMAP uses the same
-    # camera model for all images, so use the first
-    # calibrated K temporarily.
-    #
-    # Stage 2 will change DenseReconstructor so each image
-    # can use its own K and proper stereo geometry.
-    # -----------------------------------------------------
-
-    intrinsic_matrix = (
-        intrinsic_matrices[0]
+    dense_colors = np.empty(
+        (0, 3),
+        dtype=np.float64
     )
-
-    dense_result = (
-        dense_reconstructor
-        .generate_dense_cloud(
-
-            aligned_images,
-
-            camera_positions,
-
-            intrinsic_matrix,
-
-            global_rotations=
-                global_rotations,
-
-            global_translations=
-                global_translations
-        )
-    )
-
-    # =====================================================
-    # HANDLE DENSE FAILURE
-    # =====================================================
-
-    if (
-        dense_result is None
-        or
-        len(dense_result.get("points", [])) == 0
-    ):
-
-        progress_callback(
-            "[WARNING] Dense reconstruction "
-            "generated no points."
-        )
-
-        dense_points = np.empty(
-            (0, 3),
-            dtype=np.float64
-        )
-
-        dense_colors = np.empty(
-            (0, 3),
-            dtype=np.float64
-        )
-
-    else:
-
-        dense_points = np.asarray(
-            dense_result["points"],
-            dtype=np.float64
-        )
-
-        dense_colors = np.asarray(
-            dense_result["colors"],
-            dtype=np.float64
-        )
-
-    progress_callback(
-        f"Dense Points: "
-        f"{len(dense_points):,}"
-    )
-
     # =====================================================
     # COMBINE SPARSE + DENSE
     # =====================================================
 
-    point_sets = []
-    color_sets = []
+    # =====================================================
+    # USE ONLY SPARSE RECONSTRUCTION
+    # =====================================================
 
-    if len(sparse_points) > 0:
-
-        point_sets.append(
-            sparse_points
-        )
-
-        color_sets.append(
-            sparse_colors
-        )
-
-    if len(dense_points) > 0:
-
-        point_sets.append(
-            dense_points
-        )
-
-        color_sets.append(
-            dense_colors
-        )
-
-    if not point_sets:
-
-        raise RuntimeError(
-            "No reconstruction points available."
-        )
-
-    all_points = np.vstack(
-        point_sets
+    all_points = np.asarray(
+        sparse_points,
+        dtype=np.float64
     )
 
-    all_colors = np.vstack(
-        color_sets
+    all_colors = np.asarray(
+        sparse_colors,
+        dtype=np.float64
     )
-
     # =====================================================
     # REMOVE INVALID VALUES
     # =====================================================
@@ -693,6 +690,7 @@ def run_reconstruction(
             final_colors,
             output_dir="output"
         )
+        gc.collect()
 
         if mesh_result is not None:
 

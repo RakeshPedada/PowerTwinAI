@@ -1,56 +1,52 @@
 """
 PowerTwinAI
-Background Removal Module
+Image Resize Module
 
 Author:
 PowerTwinAI Team
 
 Description
 -----------
-Removes image backgrounds using rembg and saves the
-processed images for reconstruction.
-
-This module is independent of the reconstruction pipeline
-and can be reused anywhere.
+Resizes large images while preserving aspect ratio.
+Smaller images are kept unchanged.
 """
 
 import os
 from pathlib import Path
 
 import cv2
-import numpy as np
-from rembg import remove
 
 
-class BackgroundRemover:
+class ImageResizer:
 
-    def __init__(self):
+    def __init__(self, max_width=1600):
 
-        print("[BG] Background Remover Initialized")
+        self.max_width = max_width
 
-    def remove_background(self, image):
-
-        if image is None:
-            raise ValueError("Input image is None.")
-
-        success, encoded = cv2.imencode(".png", image)
-
-        if not success:
-            raise RuntimeError("Unable to encode image.")
-
-        output = remove(encoded.tobytes())
-
-        array = np.frombuffer(
-            output,
-            dtype=np.uint8
+        print(
+            f"[RESIZE] Max Width : {self.max_width}"
         )
 
-        result = cv2.imdecode(
-            array,
-            cv2.IMREAD_UNCHANGED
+    def resize_image(self, image):
+
+        height, width = image.shape[:2]
+
+        if width <= self.max_width:
+
+            return image
+
+        scale = self.max_width / float(width)
+
+        new_width = self.max_width
+        new_height = int(height * scale)
+
+        resized = cv2.resize(
+            image,
+            (new_width, new_height),
+            interpolation=cv2.INTER_AREA
         )
 
-        return result
+        return resized
 
     def process_image(
         self,
@@ -69,7 +65,7 @@ class BackgroundRemover:
                 f"Cannot read image:\n{input_path}"
             )
 
-        result = self.remove_background(image)
+        resized = self.resize_image(image)
 
         os.makedirs(
             Path(output_path).parent,
@@ -78,7 +74,11 @@ class BackgroundRemover:
 
         cv2.imwrite(
             str(output_path),
-            result
+            resized,
+            [
+                cv2.IMWRITE_JPEG_QUALITY,
+                95
+            ]
         )
 
         return str(output_path)
@@ -114,7 +114,7 @@ class BackgroundRemover:
             )
 
         print(
-            f"[BG] Images Found : {len(image_files)}"
+            f"[RESIZE] Images Found : {len(image_files)}"
         )
 
         for index, image_path in enumerate(image_files):
@@ -125,7 +125,7 @@ class BackgroundRemover:
             )
 
             print(
-                f"[BG] ({index+1}/{len(image_files)}) "
+                f"[RESIZE] ({index+1}/{len(image_files)}) "
                 f"{image_path.name}"
             )
 
@@ -139,7 +139,7 @@ class BackgroundRemover:
             )
 
         print(
-            "[BG] Background Removal Completed"
+            "[RESIZE] Completed"
         )
 
         return processed_paths

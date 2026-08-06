@@ -38,13 +38,8 @@ load_styles ()
 # PATHS
 # =========================================================
 
-TEMP_DIR = "temp_session"
-
-LOG_FILE = os.path.join(TEMP_DIR, "logs.txt")
-STATUS_FILE = os.path.join(TEMP_DIR, "status.json")
-RESULT_FILE = os.path.join(TEMP_DIR, "result_data.npz")
-IMAGE_PATHS_FILE = os.path.join(TEMP_DIR, "image_paths.json")
-
+from config.paths import *
+from config.settings import *
 # =========================================================
 # SESSION STATE
 # =========================================================

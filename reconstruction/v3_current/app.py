@@ -15,6 +15,7 @@ from ui.input_section import render_input_section
 from ui.dataset_preview import render_dataset_preview
 from ui.reconstruction_controls import render_reconstruction_controls
 from ui.progress_panel import render_progress_panel
+from ui.results_dashboard import render_results_dashboard
 from core.session_manager import initialize_session
 
 
@@ -96,134 +97,21 @@ if render_progress_panel(
 # =========================================================
 # RESULTS
 # =========================================================
+results = render_results_dashboard(
+    RESULT_FILE
+)
 
-if (
-    st.session_state.reconstruction_done
-    and os.path.exists(RESULT_FILE)
-):
+if results:
 
-    data = np.load(
-        RESULT_FILE,
-        allow_pickle=True
-    )
-
-    points = data["points"]
-    cameras = data["cameras"]
-
-    analytics = data["analytics"].item()
-
-    # =====================================================
-    # TIMINGS
-    # =====================================================
-
-    processing_time = float(
-        data["processing_time"]
-    )
-
-    colmap_time = float(
-        data["colmap_time"]
-    ) if "colmap_time" in data.files else 0.0
-
-    reconstruction_time = float(
-        data["reconstruction_time"]
-    ) if "reconstruction_time" in data.files else processing_time
-
-    total_pipeline_time = float(
-        data["total_pipeline_time"]
-    ) if "total_pipeline_time" in data.files else (
-        colmap_time + reconstruction_time
-    )
-
-    # =====================================================
-    # PLY PATH
-    # =====================================================
-
-    ply_path = ""
-
-    if "ply_path" in data.files:
-        ply_path = str(
-            data["ply_path"].item()
-        )
-
-    # =====================================================
-    # SUCCESS
-    # =====================================================
-
-    st.markdown(
-        """
-        <div class="success-box">
-        ✅ Reconstruction Completed Successfully
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # =====================================================
-    # DOWNLOAD
-    # =====================================================
-
-    st.markdown(
-        "<div class='section-title'>⬇️ Download Reconstruction</div>",
-        unsafe_allow_html=True
-    )
-
-    if (
-        ply_path
-        and os.path.exists(ply_path)
-    ):
-
-        with open(
-            ply_path,
-            "rb"
-        ) as ply_file:
-
-            st.download_button(
-                label="⬇️ Download 3D Point Cloud (.ply)",
-                data=ply_file.read(),
-                file_name=os.path.basename(
-                    ply_path
-                ),
-                mime="application/octet-stream"
-            )
-
-    else:
-
-        st.warning(
-            f"PLY output file not found: {ply_path}"
-        )
-
-    # =====================================================
-    # PROCESSING TIME BREAKDOWN
-    # =====================================================
-
-    st.markdown(
-        "<div class='section-title'>⏱️ Processing Time</div>",
-        unsafe_allow_html=True
-    )
-
-    t1, t2, t3 = st.columns(3)
-
-    with t1:
-
-        st.metric(
-            "COLMAP",
-            f"{colmap_time:.2f} sec"
-        )
-
-    with t2:
-
-        st.metric(
-            "Dense + Cleaning + Mesh",
-            f"{reconstruction_time:.2f} sec"
-        )
-
-    with t3:
-
-        st.metric(
-            "Total Pipeline Time",
-            f"{total_pipeline_time:.2f} sec"
-        )
-
+    (
+        points,
+        cameras,
+        analytics,
+        processing_time,
+        colmap_time,
+        reconstruction_time,
+        total_pipeline_time
+    ) = results
     # =====================================================
     # POINT CLOUD VISUALIZATION
     # =====================================================

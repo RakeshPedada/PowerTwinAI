@@ -15,6 +15,7 @@ from ui.input_section import render_input_section
 from ui.dataset_preview import render_dataset_preview
 from ui.reconstruction_controls import render_reconstruction_controls
 from ui.progress_panel import render_progress_panel
+from core.session_manager import initialize_session
 
 
 # =========================================================
@@ -44,11 +45,7 @@ from config.settings import *
 # SESSION STATE
 # =========================================================
 
-if "reconstruction_running" not in st.session_state:
-    st.session_state.reconstruction_running = False
-
-if "reconstruction_done" not in st.session_state:
-    st.session_state.reconstruction_done = False
+initialize_session()
 
 
 

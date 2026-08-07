@@ -17,6 +17,7 @@ from ui.reconstruction_controls import render_reconstruction_controls
 from ui.progress_panel import render_progress_panel
 from ui.results_dashboard import render_results_dashboard
 from core.session_manager import initialize_session
+from ui.point_cloud_viewer import render_point_cloud
 
 
 # =========================================================
@@ -42,6 +43,7 @@ load_styles ()
 
 from config.paths import *
 from config.settings import *
+
 # =========================================================
 # SESSION STATE
 # =========================================================
@@ -116,157 +118,7 @@ if results:
     # POINT CLOUD VISUALIZATION
     # =====================================================
 
-    st.markdown(
-        "<div class='section-title'>🌐 3D Point Cloud Reconstruction</div>",
-        unsafe_allow_html=True
-    )
-
-    points = np.asarray(
-        points,
-        dtype=np.float64
-    )
-
-    points = np.nan_to_num(
-        points,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    mask = (
-        np.linalg.norm(
-            points,
-            axis=1
-        ) > 0
-    )
-
-    points = points[mask]
-
-    st.write(
-        f"Valid reconstruction points: "
-        f"{len(points):,}"
-    )
-
-    if len(points) == 0:
-
-        st.error(
-            "No valid reconstruction points found."
-        )
-
-        st.stop()
-
-    # =====================================================
-    # DISPLAY-ONLY OUTLIER REMOVAL
-    # =====================================================
-
-    center = np.mean(
-        points,
-        axis=0
-    )
-
-    distances = np.linalg.norm(
-        points - center,
-        axis=1
-    )
-
-    threshold = np.percentile(
-        distances,
-        95
-    )
-
-    display_points = points[
-        distances < threshold
-    ]
-
-    st.write(
-        f"Display points after outlier filtering: "
-        f"{len(display_points):,}"
-    )
-
-    # =====================================================
-    # NORMALIZE FOR DISPLAY ONLY
-    # =====================================================
-
-    max_val = np.max(
-        np.abs(
-            display_points
-        )
-    )
-
-    if max_val > 0:
-
-        display_points = (
-            display_points
-            / max_val
-        )
-
-    # =====================================================
-    # DOWNSAMPLE FOR BROWSER
-    # =====================================================
-
-    if len(display_points) > 100000:
-
-        rng = np.random.default_rng(42)
-
-        idx = rng.choice(
-            len(display_points),
-            100000,
-            replace=False
-        )
-
-        display_points = (
-            display_points[idx]
-        )
-
-    # =====================================================
-    # POINT CLOUD FIGURE
-    # =====================================================
-
-    fig = go.Figure()
-
-    fig.add_trace(
-        go.Scatter3d(
-
-            x=display_points[:, 0],
-            y=display_points[:, 1],
-            z=display_points[:, 2],
-
-            mode="markers",
-
-            marker=dict(
-                size=2,
-                color=display_points[:, 2],
-                colorscale="Turbo",
-                opacity=0.8
-            )
-        )
-    )
-
-    fig.update_layout(
-
-        height=900,
-
-        paper_bgcolor="#020617",
-
-        plot_bgcolor="#020617",
-
-        scene=dict(
-            bgcolor="#010409",
-            aspectmode="data"
-        ),
-
-        margin=dict(
-            l=0,
-            r=0,
-            t=20,
-            b=0
-        )
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    render_point_cloud(points)
 
     # =====================================================
     # CAMERA TRAJECTORY

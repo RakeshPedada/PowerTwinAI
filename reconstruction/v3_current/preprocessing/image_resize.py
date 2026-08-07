@@ -72,14 +72,25 @@ class ImageResizer:
             exist_ok=True
         )
 
-        cv2.imwrite(
-            str(output_path),
-            resized,
-            [
-                cv2.IMWRITE_JPEG_QUALITY,
-                95
-            ]
-        )
+        extension = Path(output_path).suffix.lower()
+
+        if extension in [".jpg", ".jpeg"]:
+
+            cv2.imwrite(
+                str(output_path),
+                resized,
+                [
+                    cv2.IMWRITE_JPEG_QUALITY,
+                    95
+                ]
+            )
+
+        else:
+
+            cv2.imwrite(
+                str(output_path),
+                resized
+            )
 
         return str(output_path)
 

@@ -6,6 +6,7 @@ import traceback
 import numpy as np
 from reconstruction_colmap import run_reconstruction
 from run_colmap import run_colmap
+from preprocessing.preprocessing_manager import preprocess_images
 
 # =========================================================
 # UTF-8 CONSOLE FIX
@@ -107,12 +108,40 @@ try:
         image_paths = json.load(f)
     print(f"[DEBUG] Total image paths: {len(image_paths)}")
 
+  
+
     if len(image_paths) > 0:
         print(f"[DEBUG] First image path: {image_paths[0]}")    
 
+
+    # =====================================================
+    # PREPROCESS IMAGES
+    # =====================================================
+
+    log_message(
+        "[PREPROCESS] Starting preprocessing..."
+    )
+
+    processed_image_paths = preprocess_images(
+        image_paths,
+        progress_callback=log_message
+    )
+    if len(processed_image_paths) == 0:
+
+        raise RuntimeError(
+            "No images available after preprocessing."
+        )
+    print(
+    f"[DEBUG] Processed images: {len(processed_image_paths)}"
+)
+
+    log_message(
+        f"[PREPROCESS] Images after preprocessing: {len(processed_image_paths)}"
+    )
+
     uploaded_files = []
 
-    for path in image_paths:
+    for path in processed_image_paths:
 
         uploaded_files.append({
             "path": path,
@@ -122,6 +151,7 @@ try:
     log_message(
         f"[INFO] Loaded {len(uploaded_files)} images"
     )
+
     # =====================================================
     # RUN COLMAP AUTOMATICALLY
     # =====================================================
@@ -130,11 +160,11 @@ try:
         "[COLMAP] Starting automatic sparse reconstruction..."
     )
 
-    print(f"[DEBUG] Total image paths passed to COLMAP: {len(image_paths)}")
+    print(f"[DEBUG] Total processed image paths passed to COLMAP: {len(processed_image_paths)}")
 
     colmap_start_time = time.perf_counter()
 
-    run_colmap(image_paths)
+    run_colmap(processed_image_paths)
 
     colmap_time = (
         time.perf_counter()

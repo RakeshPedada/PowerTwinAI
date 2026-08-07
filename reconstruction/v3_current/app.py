@@ -16,8 +16,9 @@ from ui.dataset_preview import render_dataset_preview
 from ui.reconstruction_controls import render_reconstruction_controls
 from ui.progress_panel import render_progress_panel
 from ui.results_dashboard import render_results_dashboard
-from core.session_manager import initialize_session
 from ui.point_cloud_viewer import render_point_cloud
+from ui.camera_trajectory import render_camera_trajectory
+from core.session_manager import initialize_session
 
 
 # =========================================================
@@ -124,80 +125,7 @@ if results:
     # CAMERA TRAJECTORY
     # =====================================================
 
-    st.markdown(
-        "<div class='section-title'>📷 Camera Trajectory</div>",
-        unsafe_allow_html=True
-    )
-
-    cameras = np.asarray(
-        cameras,
-        dtype=np.float64
-    )
-
-    if (
-        cameras.ndim == 2
-        and cameras.shape[1] == 3
-        and len(cameras) > 0
-    ):
-
-        fig_cam = go.Figure()
-
-        fig_cam.add_trace(
-            go.Scatter3d(
-
-                x=cameras[:, 0],
-                y=cameras[:, 1],
-                z=cameras[:, 2],
-
-                mode="lines+markers",
-
-                marker=dict(
-                    size=6,
-                    color="#00ff99"
-                ),
-
-                line=dict(
-                    width=4,
-                    color="#00ffaa"
-                )
-            )
-        )
-
-        fig_cam.update_layout(
-
-            height=650,
-
-            paper_bgcolor="#020617",
-
-            scene=dict(
-                bgcolor="#010409",
-                aspectmode="data"
-            ),
-
-            font=dict(
-                family="Inter",
-                size=16,
-                color="white"
-            ),
-
-            margin=dict(
-                l=0,
-                r=0,
-                t=20,
-                b=0
-            )
-        )
-
-        st.plotly_chart(
-            fig_cam,
-            use_container_width=True
-        )
-
-    else:
-
-        st.warning(
-            "No valid camera trajectory available."
-        )
+    render_camera_trajectory(cameras)
 
     # =====================================================
     # PAIR STATISTICS

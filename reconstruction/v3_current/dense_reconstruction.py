@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import open3d as o3d
 import gc
-
+from dense.image_loader import load_image_pair
 
 class DenseReconstructor:
 
@@ -159,55 +159,23 @@ class DenseReconstructor:
                     f"\n[DENSE] Processing pair "
                     f"{i}-{i + 1}"
                 )
-
                 # =========================================
-                # LOAD IMAGES FROM DISK
+                # LOAD & VALIDATE IMAGE PAIR
                 # =========================================
 
-                img1 = cv2.imread(
-                    image_paths[i],
-                    cv2.IMREAD_COLOR
-                )
+                try:
 
-                img2 = cv2.imread(
-                    image_paths[i + 1],
-                    cv2.IMREAD_COLOR
-                )
-
-                if img1 is None:
-
-                    print(
-                        f"[DENSE] Failed to load:\n"
-                        f"{image_paths[i]}"
+                    img1, img2 = load_image_pair(
+                        image_paths[i],
+                        image_paths[i + 1]
                     )
 
-                    failed_pairs += 1
-                    continue
+                except Exception as e:
 
-                if img2 is None:
-
-                    print(
-                        f"[DENSE] Failed to load:\n"
-                        f"{image_paths[i + 1]}"
-                    )
+                    print(f"[DENSE] {e}")
 
                     failed_pairs += 1
-                    continue
 
-                # =========================================
-                # IMAGE VALIDATION
-                # =========================================
-
-                if img1.shape[:2] != img2.shape[:2]:
-
-                    print(
-                        "[DENSE] Pair has different image dimensions."
-                    )
-
-                    del img1
-                    del img2
-
-                    failed_pairs += 1
                     continue
                 # =========================================
                 # CAMERA-CENTER BASELINE

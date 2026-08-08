@@ -8,7 +8,6 @@ import json
 import os
 import glob
 from streamlit_autorefresh import st_autorefresh
-from PowerTwinAI.reconstruction.v3_current.ui.pair_statistics import render_pair_statistics
 from dense_reconstruction import DenseReconstructor
 from ui.styles import load_styles
 from ui.header import show_header

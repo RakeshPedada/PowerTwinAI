@@ -9,7 +9,7 @@ import open3d as o3d
 from colmap_loader import load_colmap_model
 from mesh_generator import generate_mesh
 
-print("COLMAP RECONSTRUCTION.PY IS RUNNING")
+print("[RECONSTRUCTION] COLMAP result processing module loaded")
 
 
 # =========================================================

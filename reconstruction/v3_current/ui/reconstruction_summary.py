@@ -83,6 +83,6 @@ def render_reconstruction_summary(
 - Dense + Cleaning + Mesh Time: **{reconstruction_time:.2f} sec**
 - **Total Pipeline Time: {total_pipeline_time:.2f} sec**
 - Sparse Reconstruction: **COLMAP SfM + Bundle Adjustment**
-- Dense Reconstruction: **Stage-1 StereoSGBM Prototype**
+- Dense Reconstruction: COLMAP PatchMatch Stereo + Stereo Fusion**
 """
     )

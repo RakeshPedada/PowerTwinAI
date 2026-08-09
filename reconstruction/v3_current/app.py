@@ -8,7 +8,6 @@ import json
 import os
 import glob
 from streamlit_autorefresh import st_autorefresh
-from dense_reconstruction import DenseReconstructor
 from ui.styles import load_styles
 from ui.header import show_header
 from ui.input_section import render_input_section

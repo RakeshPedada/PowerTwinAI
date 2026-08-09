@@ -328,7 +328,7 @@ try:
     )
 
     log_message(
-        f"[TIME] COLMAP Sparse Reconstruction: "
+        f"[TIME] COLMAP Backend (Sparse + Dense):"
         f"{colmap_time:.2f} sec"
     )
 
@@ -338,7 +338,7 @@ try:
     )
 
     log_message(
-        f"[TIME] Dense + Cleaning + Mesh: "
+        f"[TIME] Dense Output Processing + Mesh: "
         f"{reconstruction_time:.2f} sec"
     )
 

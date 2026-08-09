@@ -38,7 +38,7 @@ def render_pair_statistics():
     if pair_logs.empty:
 
         st.info(
-            "Detailed pair statistics are not available in the current Stage-1 pipeline."
+           "Detailed pair statistics are not available for the current COLMAP backend output."
         )
 
         return

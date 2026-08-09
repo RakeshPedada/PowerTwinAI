@@ -5,7 +5,7 @@ import time
 import traceback
 import numpy as np
 from reconstruction_colmap import run_reconstruction
-from run_colmap import run_colmap
+from backends.backend_manager import BackendManager
 from preprocessing.preprocessing_manager import preprocess_images
 
 # =========================================================
@@ -153,18 +153,27 @@ try:
     )
 
     # =====================================================
-    # RUN COLMAP AUTOMATICALLY
+    # RUN RECONSTRUCTION BACKEND
     # =====================================================
 
     log_message(
-        "[COLMAP] Starting automatic sparse reconstruction..."
+        "[BACKEND] Starting reconstruction backend..."
     )
 
-    print(f"[DEBUG] Total processed image paths passed to COLMAP: {len(processed_image_paths)}")
+    print(
+        f"[DEBUG] Total processed image paths passed "
+        f"to backend: {len(processed_image_paths)}"
+    )
 
     colmap_start_time = time.perf_counter()
 
-    run_colmap(processed_image_paths)
+    backend_manager = BackendManager(
+        backend="colmap"
+    )
+
+    backend_manager.run(
+        processed_image_paths
+    )
 
     colmap_time = (
         time.perf_counter()
@@ -172,13 +181,14 @@ try:
     )
 
     log_message(
-        f"[TIME] COLMAP Reconstruction: "
+        f"[TIME] COLMAP Backend: "
         f"{colmap_time:.2f} sec"
     )
 
     log_message(
-        "[COLMAP] Sparse reconstruction completed"
+        "[BACKEND] COLMAP backend completed"
     )
+
     reconstruction_start_time = time.perf_counter()
     # =====================================================
     # RUN RECONSTRUCTION

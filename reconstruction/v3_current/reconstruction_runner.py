@@ -171,13 +171,32 @@ try:
         backend="colmap"
     )
 
-    backend_manager.run(
+    dense_ply_path = backend_manager.run(
         processed_image_paths
     )
+    if not dense_ply_path:
 
+        raise RuntimeError(
+            "COLMAP backend did not return "
+            "a dense point-cloud path."
+        )
+
+    if not os.path.exists(
+        dense_ply_path
+    ):
+
+        raise FileNotFoundError(
+            f"COLMAP dense point cloud not found: "
+            f"{dense_ply_path}"
+        )
+
+    log_message(
+        f"[BACKEND] Dense point cloud ready: "
+        f"{dense_ply_path}"
+    )
     colmap_time = (
-        time.perf_counter()
-        - colmap_start_time
+    time.perf_counter()
+    - colmap_start_time
     )
 
     log_message(
@@ -206,6 +225,8 @@ try:
     ) = run_reconstruction(
 
         uploaded_files,
+
+        dense_ply_path,
 
         progress_callback=log_message
     )

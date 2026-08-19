@@ -72,7 +72,7 @@ def run_colmap_backend(
         "[BACKEND] Starting COLMAP sparse reconstruction..."
     )
 
-    run_colmap(
+    sparse_model_path = run_colmap(
         image_paths
     )
 
@@ -88,8 +88,10 @@ def run_colmap_backend(
         "[BACKEND] Starting COLMAP dense reconstruction..."
     )
 
-    dense_ply_path = run_colmap_dense()
-
+    dense_ply_path = run_colmap_dense(
+        workspace="colmap_workspace",
+        sparse_model_path=sparse_model_path
+    )
     if not dense_ply_path:
 
         raise RuntimeError(

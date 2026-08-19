@@ -1,24 +1,21 @@
 """
-COLMAP Dense Reconstruction
+PowerTwinAI COLMAP Dense Reconstruction
 
-Objective
----------
-Provide a dedicated interface for executing COLMAP's
-dense reconstruction pipeline after sparse reconstruction.
+Pipeline
+--------
+Sparse COLMAP model
+        ↓
+Image Undistortion
+        ↓
+PatchMatch Stereo
+        ↓
+Geometric Consistency
+        ↓
+Stereo Fusion
+        ↓
+Dense Point Cloud
 
-Responsibilities
-----------------
-- Prepare the COLMAP dense workspace.
-- Run image undistortion.
-- Run PatchMatch Stereo.
-- Run Stereo Fusion.
-- Return the generated dense point-cloud path.
-
-The actual reconstruction is performed by COLMAP.
-
-Part of
--------
-PowerTwinAI Phase 6 Architecture
+The dense reconstruction itself is performed by COLMAP.
 """
 
 import os
@@ -29,25 +26,24 @@ COLMAP_PATH = r"E:\COLMAP\COLMAP.bat"
 
 
 def run_colmap_dense(
-    workspace="colmap_workspace"
+    workspace="colmap_workspace",
+    sparse_model_path=None
 ):
     """
-    Run COLMAP dense reconstruction.
+    Run the COLMAP dense reconstruction pipeline.
 
     Parameters
     ----------
     workspace : str
-        COLMAP workspace containing:
+        COLMAP workspace containing the input images.
 
-        workspace/
-            images/
-            sparse/
-                0/
+    sparse_model_path : str
+        Selected COLMAP sparse reconstruction model.
 
     Returns
     -------
     str
-        Path to the fused COLMAP dense point cloud.
+        Path to the fused dense point cloud.
     """
 
     # =====================================================
@@ -59,11 +55,11 @@ def run_colmap_dense(
         "images"
     )
 
-    sparse_model_path = os.path.join(
-        workspace,
-        "sparse",
-        "0"
-    )
+    if sparse_model_path is None:
+        raise ValueError(
+            "Selected COLMAP sparse model path "
+            "was not provided."
+        )
 
     dense_path = os.path.join(
         workspace,
@@ -72,31 +68,28 @@ def run_colmap_dense(
 
     fused_path = os.path.join(
         dense_path,
-        "fused.ply"
+        "fused_geometric.ply"
     )
 
     # =====================================================
     # VALIDATION
     # =====================================================
 
-    if not os.path.exists(images_path):
-
+    if not os.path.isdir(images_path):
         raise FileNotFoundError(
-            f"COLMAP images directory not found: "
+            "COLMAP images directory not found: "
             f"{images_path}"
         )
 
-    if not os.path.exists(sparse_model_path):
-
+    if not os.path.isdir(sparse_model_path):
         raise FileNotFoundError(
-            f"COLMAP sparse model not found: "
+            "COLMAP sparse model not found: "
             f"{sparse_model_path}"
         )
 
     if not os.path.exists(COLMAP_PATH):
-
         raise FileNotFoundError(
-            f"COLMAP executable not found: "
+            "COLMAP executable not found: "
             f"{COLMAP_PATH}"
         )
 
@@ -113,9 +106,9 @@ def run_colmap_dense(
     # IMAGE UNDISTORTION
     # =====================================================
 
-    print(
-        "[COLMAP-DENSE] Starting image undistortion..."
-    )
+    print("=" * 70)
+    print("[COLMAP-DENSE] IMAGE UNDISTORTION")
+    print("=" * 70)
 
     subprocess.run(
         [
@@ -141,9 +134,9 @@ def run_colmap_dense(
     # PATCHMATCH STEREO
     # =====================================================
 
-    print(
-        "[COLMAP-DENSE] Starting PatchMatch Stereo..."
-    )
+    print("=" * 70)
+    print("[COLMAP-DENSE] PATCHMATCH STEREO")
+    print("=" * 70)
 
     subprocess.run(
         [
@@ -152,7 +145,9 @@ def run_colmap_dense(
             "--workspace_path",
             dense_path,
             "--workspace_format",
-            "COLMAP"
+            "COLMAP",
+            "--PatchMatchStereo.geom_consistency",
+            "true"
         ],
         check=True
     )
@@ -165,9 +160,9 @@ def run_colmap_dense(
     # STEREO FUSION
     # =====================================================
 
-    print(
-        "[COLMAP-DENSE] Starting Stereo Fusion..."
-    )
+    print("=" * 70)
+    print("[COLMAP-DENSE] STEREO FUSION")
+    print("=" * 70)
 
     subprocess.run(
         [
@@ -177,12 +172,17 @@ def run_colmap_dense(
             dense_path,
             "--workspace_format",
             "COLMAP",
+            "--input_type",
+            "geometric",
+            "--output_type",
+            "PLY",
             "--output_path",
-            fused_path
+            fused_path,
+            "--StereoFusion.min_num_pixels",
+            "2"
         ],
         check=True
     )
-
     print(
         "[COLMAP-DENSE] Stereo Fusion completed."
     )
@@ -191,16 +191,15 @@ def run_colmap_dense(
     # VALIDATE OUTPUT
     # =====================================================
 
-    if not os.path.exists(fused_path):
-
+    if not os.path.isfile(fused_path):
         raise RuntimeError(
             "COLMAP dense reconstruction completed "
-            "but fused.ply was not generated."
+            "but fused_geometric.ply was not generated."
         )
 
-    print(
-        "[COLMAP-DENSE] Dense reconstruction completed."
-    )
+    print("=" * 70)
+    print("[COLMAP-DENSE] DENSE RECONSTRUCTION COMPLETE")
+    print("=" * 70)
 
     print(
         f"[COLMAP-DENSE] Output: {fused_path}"

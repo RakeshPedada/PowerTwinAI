@@ -321,8 +321,31 @@ def run_reconstruction(
         "[COLMAP-DENSE] Loading fused dense point cloud..."
     )
 
+    absolute_dense_path = os.path.abspath(
+        dense_ply_path
+    )
+
+    dense_file_size = os.path.getsize(
+        dense_ply_path
+    )
+
+    progress_callback(
+        f"[COLMAP-DENSE] Path: "
+        f"{absolute_dense_path}"
+    )
+
+    progress_callback(
+        f"[COLMAP-DENSE] File size: "
+        f"{dense_file_size:,} bytes"
+    )
+
     dense_pcd = o3d.io.read_point_cloud(
         dense_ply_path
+    )
+
+    progress_callback(
+        f"[COLMAP-DENSE] Has colors: "
+        f"{dense_pcd.has_colors()}"
     )
 
     if dense_pcd.is_empty():

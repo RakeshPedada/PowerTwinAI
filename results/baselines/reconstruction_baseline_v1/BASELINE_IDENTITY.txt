@@ -1,0 +1,23 @@
+﻿PowerTwinAI Reconstruction Baseline v1
+
+Git Commit: 1f2285c
+Branch: main
+
+Python: 3.10.10
+
+COLMAP: 4.1.0.dev0
+COLMAP Commit: 5b76f53
+CUDA: Enabled
+
+Dataset Images: 67
+
+Registered Images: 67
+Sparse Points: 15934
+Raw Dense Points: 20133
+Cleaned Points: 19417
+Mesh Vertices: 24788
+Mesh Triangles: 49008
+
+Status:
+Baseline definition frozen.
+Artifact files will only be added after their identity is verified.

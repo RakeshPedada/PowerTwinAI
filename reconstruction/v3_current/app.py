@@ -7,7 +7,10 @@ import subprocess
 import json
 import os
 import glob
-from streamlit_autorefresh import st_autorefresh
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    st_autorefresh = None
 from ui.styles import load_styles
 from ui.header import show_header
 from ui.input_section import render_input_section

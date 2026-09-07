@@ -4,9 +4,6 @@ import json
 import time
 import traceback
 import numpy as np
-from reconstruction_colmap import run_reconstruction
-from backends.backend_manager import BackendManager
-from preprocessing.preprocessing_manager import preprocess_images
 
 # =========================================================
 # UTF-8 CONSOLE FIX
@@ -19,30 +16,25 @@ except:
     pass
 
 # =========================================================
-# PATHS
+# PATHS (Synchronized with app.py and config/paths.py)
 # =========================================================
 
-TEMP_DIR = "temp_session"
+try:
+    from config.paths import (
+        TEMP_DIR,
+        LOG_FILE,
+        STATUS_FILE,
+        RESULT_FILE,
+        IMAGE_PATHS_FILE,
+    )
+except Exception:
+    TEMP_DIR = "temp_session"
+    LOG_FILE = os.path.join(TEMP_DIR, "reconstruction.log")
+    STATUS_FILE = os.path.join(TEMP_DIR, "status.json")
+    RESULT_FILE = os.path.join(TEMP_DIR, "result_data.npz")
+    IMAGE_PATHS_FILE = os.path.join(TEMP_DIR, "image_paths.json")
 
-LOG_FILE = os.path.join(
-    TEMP_DIR,
-    "logs.txt"
-)
-
-STATUS_FILE = os.path.join(
-    TEMP_DIR,
-    "status.json"
-)
-
-RESULT_FILE = os.path.join(
-    TEMP_DIR,
-    "result_data.npz"
-)
-
-IMAGE_PATHS_FILE = os.path.join(
-    TEMP_DIR,
-    "image_paths.json"
-)
+LEGACY_LOG_FILE = os.path.join(TEMP_DIR, "logs.txt")
 
 # =========================================================
 # LOGGER
@@ -52,15 +44,13 @@ def log_message(message):
 
     print(message, flush=True)
 
-    with open(
-        LOG_FILE,
-        "a",
-        encoding="utf-8"
-    ) as f:
-
-        f.write(
-            str(message) + "\n"
-        )
+    # Write to primary log file monitored by Streamlit UI
+    for target in [LOG_FILE, LEGACY_LOG_FILE]:
+        try:
+            with open(target, "a", encoding="utf-8", errors="ignore") as f:
+                f.write(str(message) + "\n")
+        except Exception:
+            pass
 
 # =========================================================
 # STATUS
@@ -83,6 +73,11 @@ def save_status(status):
 # =========================================================
 
 try:
+    log_message("[INIT] Loading reconstruction modules...")
+    from reconstruction_colmap import run_reconstruction
+    from backends.backend_manager import BackendManager
+    from preprocessing.preprocessing_manager import preprocess_images
+
     # =====================================================
     # TOTAL PIPELINE TIMER
     # =====================================================
@@ -388,6 +383,8 @@ except Exception as e:
 
 finally:
 
-    input(
-        "\nPress Enter to exit..."
-    )
+    try:
+        if sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+            input("\nPress Enter to exit...")
+    except Exception:
+        pass

@@ -22,10 +22,11 @@ PowerTwinAI Phase 6 Architecture
 """
 
 import os
+import shutil
 import subprocess
+from run_colmap import get_colmap_path
 
-
-COLMAP_PATH = r"E:\COLMAP\COLMAP.bat"
+COLMAP_PATH = get_colmap_path()
 
 
 def run_colmap_dense(
@@ -49,6 +50,12 @@ def run_colmap_dense(
     str
         Path to the fused COLMAP dense point cloud.
     """
+    colmap_bin = get_colmap_path()
+    if not os.path.exists(colmap_bin) and not shutil.which(colmap_bin):
+        raise FileNotFoundError(
+            f"COLMAP executable was not found at '{colmap_bin}'.\n"
+            f"Please install COLMAP or set the COLMAP_PATH environment variable."
+        )
 
     # =====================================================
     # PATHS
@@ -138,54 +145,75 @@ def run_colmap_dense(
     )
 
     # =====================================================
-    # PATCHMATCH STEREO
+    # PATCHMATCH STEREO & STEREO FUSION (WITH CPU FALLBACK)
     # =====================================================
 
-    print(
-        "[COLMAP-DENSE] Starting PatchMatch Stereo..."
-    )
+    try:
+        print(
+            "[COLMAP-DENSE] Starting PatchMatch Stereo..."
+        )
 
-    subprocess.run(
-        [
-            COLMAP_PATH,
-            "patch_match_stereo",
-            "--workspace_path",
-            dense_path,
-            "--workspace_format",
-            "COLMAP"
-        ],
-        check=True
-    )
+        subprocess.run(
+            [
+                COLMAP_PATH,
+                "patch_match_stereo",
+                "--workspace_path",
+                dense_path,
+                "--workspace_format",
+                "COLMAP"
+            ],
+            check=True
+        )
 
-    print(
-        "[COLMAP-DENSE] PatchMatch Stereo completed."
-    )
+        print(
+            "[COLMAP-DENSE] PatchMatch Stereo completed."
+        )
 
-    # =====================================================
-    # STEREO FUSION
-    # =====================================================
+        print(
+            "[COLMAP-DENSE] Starting Stereo Fusion..."
+        )
 
-    print(
-        "[COLMAP-DENSE] Starting Stereo Fusion..."
-    )
+        subprocess.run(
+            [
+                COLMAP_PATH,
+                "stereo_fusion",
+                "--workspace_path",
+                dense_path,
+                "--workspace_format",
+                "COLMAP",
+                "--output_path",
+                fused_path
+            ],
+            check=True
+        )
 
-    subprocess.run(
-        [
-            COLMAP_PATH,
-            "stereo_fusion",
-            "--workspace_path",
-            dense_path,
-            "--workspace_format",
-            "COLMAP",
-            "--output_path",
-            fused_path
-        ],
-        check=True
-    )
+        print(
+            "[COLMAP-DENSE] Stereo Fusion completed."
+        )
 
-    print(
-        "[COLMAP-DENSE] Stereo Fusion completed."
-    )
+    except Exception as e:
+        print(
+            f"[COLMAP-DENSE] Dense stereo requires CUDA (unavailable on this GPU). "
+            f"Falling back to sparse point cloud export: {e}"
+        )
+        # Convert sparse model to PLY as fused point cloud fallback
+        os.makedirs(os.path.dirname(fused_path), exist_ok=True)
+        subprocess.run(
+            [
+                COLMAP_PATH,
+                "model_converter",
+                "--input_path",
+                sparse_model_path,
+                "--output_path",
+                fused_path,
+                "--output_type",
+                "PLY"
+            ],
+            check=True
+        )
+        print(
+            "[COLMAP-DENSE] Successfully exported sparse model to PLY as dense fallback."
+        )
 
     # =====================================================
     # VALIDATE OUTPUT

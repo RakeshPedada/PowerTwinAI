@@ -58,15 +58,15 @@ def render_results_dashboard(result_file):
 
     st.markdown(
         """
-        <div class="success-box">
-        ✅ Reconstruction Completed Successfully
+        <div class="status-box-success">
+          <span>✅</span> &nbsp;<b>Reconstruction Completed Successfully</b> — Dense point cloud & camera trajectory ready.
         </div>
         """,
         unsafe_allow_html=True
     )
 
     st.markdown(
-        "<div class='section-title'>⬇️ Download Reconstruction</div>",
+        "<div class='section-title'><span>⬇️</span> Download Reconstruction</div>",
         unsafe_allow_html=True
     )
 
@@ -91,25 +91,31 @@ def render_results_dashboard(result_file):
         )
 
     st.markdown(
-        "<div class='section-title'>⏱️ Processing Time</div>",
+        "<div class='section-title'><span>⏱️</span> Processing Time</div>",
         unsafe_allow_html=True
     )
 
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric(
-        "COLMAP",
-        f"{colmap_time:.2f} sec"
-    )
-
-    c2.metric(
-        "Dense + Cleaning + Mesh",
-        f"{reconstruction_time:.2f} sec"
-    )
-
-    c3.metric(
-        "Total Pipeline Time",
-        f"{total_pipeline_time:.2f} sec"
+    st.markdown(
+        f"""
+<div class="glass-stat-grid">
+  <div class="glass-stat-card">
+    <div class="glass-stat-label">COLMAP Stage</div>
+    <div class="glass-stat-value">{colmap_time:.2f}s</div>
+    <div class="glass-stat-sub">Feature matching & sparse SfM</div>
+  </div>
+  <div class="glass-stat-card">
+    <div class="glass-stat-label">Dense & Mesh</div>
+    <div class="glass-stat-value">{reconstruction_time:.2f}s</div>
+    <div class="glass-stat-sub">Stereo fusion & filtering</div>
+  </div>
+  <div class="glass-stat-card">
+    <div class="glass-stat-label">Total Pipeline</div>
+    <div class="glass-stat-value">{total_pipeline_time:.2f}s</div>
+    <div class="glass-stat-sub">End-to-end execution time</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True
     )
 
     return (

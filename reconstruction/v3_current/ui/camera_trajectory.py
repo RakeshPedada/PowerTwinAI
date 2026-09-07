@@ -57,10 +57,10 @@ def render_camera_trajectory(cameras):
 
         height=650,
 
-        paper_bgcolor="#020617",
+        paper_bgcolor="#0a0614",
 
         scene=dict(
-            bgcolor="#010409",
+            bgcolor="#05030a",
             aspectmode="data"
         ),
 

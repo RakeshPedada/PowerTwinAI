@@ -70,11 +70,11 @@ def render_pair_statistics():
         )
 
         fig_hist.update_layout(
-            paper_bgcolor="#020617",
-            plot_bgcolor="#020617",
+            paper_bgcolor="#0a0614",
+            plot_bgcolor="#0a0614",
             font=dict(
                 family="Inter",
-                size=16,
+                size=14,
                 color="white"
             )
         )
@@ -117,11 +117,11 @@ def render_pair_statistics():
         )
 
         fig_pie.update_layout(
-            paper_bgcolor="#020617",
-            plot_bgcolor="#020617",
+            paper_bgcolor="#0a0614",
+            plot_bgcolor="#0a0614",
             font=dict(
                 family="Inter",
-                size=16,
+                size=14,
                 color="white"
             )
         )

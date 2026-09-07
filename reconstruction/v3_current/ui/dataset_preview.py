@@ -1,9 +1,7 @@
 """
-Dataset preview section for the PowerTwinAI Streamlit application.
-
-Responsibilities:
-- Preview uploaded images
-- Display dataset statistics
+ui/dataset_preview.py
+---------------------
+Dataset preview and thumbnail gallery matching the Figma design.
 """
 
 import os
@@ -11,24 +9,21 @@ import streamlit as st
 
 
 def render_dataset_preview(uploaded_files, mode):
-    """
-    Display dataset preview and statistics.
-
-    Parameters
-    ----------
-    uploaded_files : list
-        Uploaded files or dataset image paths.
-
-    mode : str
-        Input mode selected by the user.
-    """
-
     if not uploaded_files:
         return
 
     st.markdown(
-        "<div class='section-title'>📸 Dataset Preview</div>",
-        unsafe_allow_html=True
+        """
+<div class="figma-card">
+  <div class="card-header-bar">
+    <div class="card-header-icon">📸</div>
+    <div class="card-header-titles">
+      <h3>Dataset Preview &amp; Gallery</h3>
+      <p>Inspection of input frames and dataset footprint</p>
+    </div>
+  </div>
+""",
+        unsafe_allow_html=True,
     )
 
     total_size = 0
@@ -37,16 +32,10 @@ def render_dataset_preview(uploaded_files, mode):
     cols = st.columns(4)
 
     for idx, file in enumerate(uploaded_files):
-
-        # --------------------------------------------------
-        # Calculate image size
-        # --------------------------------------------------
-
-        if mode == "Upload Images":
+        if mode == "upload" or mode == "Upload Images":
             size_mb = len(file.getvalue()) / (1024 * 1024)
             caption = file.name
             image = file
-
         else:
             size_mb = os.path.getsize(file) / (1024 * 1024)
             caption = os.path.basename(file)
@@ -54,38 +43,34 @@ def render_dataset_preview(uploaded_files, mode):
 
         total_size += size_mb
 
-        # --------------------------------------------------
-        # Preview only first few images
-        # --------------------------------------------------
-
         if idx < preview_limit:
+            with cols[idx % 4]:
+                st.image(
+                    image,
+                    caption=caption,
+                    use_container_width=True
+                )
 
-            cols[idx % 4].image(
-                image,
-                caption=caption,
-                use_container_width=True
-            )
+    if len(uploaded_files) > preview_limit:
+        st.caption(f"Showing first {preview_limit} of {len(uploaded_files)} images...")
 
-    # --------------------------------------------------
-    # Dataset Statistics
-    # --------------------------------------------------
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    c1, c2 = st.columns(2)
-
-    with c1:
-
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-title">Total Images</div>
-            <div class="metric-value">{len(uploaded_files)}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-title">Dataset Size</div>
-            <div class="metric-value">{total_size:.2f} MB</div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+<div class="glass-stat-grid">
+  <div class="glass-stat-card">
+    <div class="glass-stat-label">Total Images</div>
+    <div class="glass-stat-value">{len(uploaded_files)}</div>
+    <div class="glass-stat-sub">Valid frames loaded</div>
+  </div>
+  <div class="glass-stat-card">
+    <div class="glass-stat-label">Dataset Size</div>
+    <div class="glass-stat-value">{total_size:.2f} MB</div>
+    <div class="glass-stat-sub">Uncompressed memory footprint</div>
+  </div>
+</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )

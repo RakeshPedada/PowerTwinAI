@@ -3,9 +3,50 @@ import shutil
 import subprocess
 
 
-COLMAP_PATH = r"E:\COLMAP\COLMAP.bat"
+def get_colmap_path():
+    """
+    Locate the COLMAP executable or batch script.
+    Checks environment variable COLMAP_PATH, candidate paths on C: and other drives,
+    and system PATH.
+    """
+    env_path = os.environ.get("COLMAP_PATH")
+    if env_path and (os.path.exists(env_path) or shutil.which(env_path)):
+        return env_path
+
+    candidates = [
+        r"C:\COLMAP\COLMAP.bat",
+        r"C:\COLMAP\colmap.bat",
+        r"C:\COLMAP\bin\colmap.exe",
+        r"C:\COLMAP\colmap.exe",
+        r"C:\Program Files\COLMAP\COLMAP.bat",
+        r"C:\Program Files\COLMAP\bin\colmap.exe",
+        r"C:\Program Files\COLMAP\colmap.exe",
+        r"E:\COLMAP\COLMAP.bat",
+        r"D:\COLMAP\COLMAP.bat",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+
+    which = shutil.which("colmap") or shutil.which("colmap.bat") or shutil.which("COLMAP.bat")
+    if which:
+        return which
+
+    return r"C:\COLMAP\COLMAP.bat"
+
+
+COLMAP_PATH = get_colmap_path()
+
 
 def run_colmap(image_paths):
+
+    colmap_bin = get_colmap_path()
+    if not os.path.exists(colmap_bin) and not shutil.which(colmap_bin):
+        raise FileNotFoundError(
+            f"COLMAP executable was not found at '{colmap_bin}'.\n"
+            f"Please install COLMAP (recommended location: C:\\COLMAP\\COLMAP.bat) "
+            f"or set the COLMAP_PATH environment variable."
+        )
 
     workspace = "colmap_workspace"
 

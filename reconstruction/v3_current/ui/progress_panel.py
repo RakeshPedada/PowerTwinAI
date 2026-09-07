@@ -1,7 +1,10 @@
 import os
 import json
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    st_autorefresh = None
 
 
 def render_progress_panel(log_file, status_file):
@@ -17,7 +20,8 @@ def render_progress_panel(log_file, status_file):
     if not st.session_state.reconstruction_running:
         return False
 
-    st_autorefresh(interval=7000, key="refresh")
+    if st_autorefresh is not None:
+        st_autorefresh(interval=7000, key="refresh")
 
     logs = []
 
@@ -49,11 +53,20 @@ def render_progress_panel(log_file, status_file):
         with open(status_file, "r") as f:
             status_data = json.load(f)
 
-        if status_data.get("status") == "COMPLETED":
+        status = status_data.get("status")
+        if status == "COMPLETED":
 
             st.session_state.reconstruction_running = False
             st.session_state.reconstruction_done = True
 
             return True
+
+        elif status == "FAILED":
+
+            st.session_state.reconstruction_running = False
+            st.session_state.reconstruction_done = False
+
+            st.error("❌ Reconstruction pipeline encountered an error. Please inspect the logs above.")
+            return False
 
     return False

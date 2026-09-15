@@ -45,7 +45,7 @@ def render_pair_statistics():
 
     st.dataframe(
         pair_logs,
-        use_container_width=True
+        width='stretch'
     )
 
     # =====================================================
@@ -81,7 +81,7 @@ def render_pair_statistics():
 
         st.plotly_chart(
             fig_hist,
-            use_container_width=True
+            width='stretch'
         )
 
     # =====================================================
@@ -128,5 +128,5 @@ def render_pair_statistics():
 
         st.plotly_chart(
             fig_pie,
-            use_container_width=True
+            width='stretch'
         )

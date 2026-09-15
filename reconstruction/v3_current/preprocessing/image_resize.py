@@ -9,35 +9,56 @@ Description
 -----------
 Resizes large images while preserving aspect ratio.
 Smaller images are kept unchanged.
+
+Enhancements
+------------
+- max_height parameter added alongside max_width
+- Scale computed from both axes — whichever is the limiting constraint
+- Sorted file ordering for deterministic reconstruction
+- WebP support added to extensions
+- progress_callback support for UI integration
+- Per-image error handling — bad image is skipped, not a crash
 """
 
-import os
 from pathlib import Path
 
 import cv2
 
 
+SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
+
+
 class ImageResizer:
 
-    def __init__(self, max_width=1600):
-
+    def __init__(
+        self,
+        max_width: int = 2000,   # was 1600 — more pixels → more features
+        max_height: int = 1500,  # was 1200
+        progress_callback=print
+    ):
         self.max_width = max_width
+        self.max_height = max_height
+        self.progress_callback = progress_callback
 
-        print(
-            f"[RESIZE] Max Width : {self.max_width}"
+        self.progress_callback(
+            f"[RESIZE] Max Size: {self.max_width}x{self.max_height}"
         )
 
     def resize_image(self, image):
 
         height, width = image.shape[:2]
 
-        if width <= self.max_width:
+        # Scale factor limited by both axes — takes the smaller scale
+        scale = min(
+            self.max_width / width,
+            self.max_height / height,
+            1.0           # Never upscale
+        )
 
+        if scale == 1.0:
             return image
 
-        scale = self.max_width / float(width)
-
-        new_width = self.max_width
+        new_width = int(width * scale)
         new_height = int(height * scale)
 
         resized = cv2.resize(
@@ -60,37 +81,33 @@ class ImageResizer:
         )
 
         if image is None:
-
             raise RuntimeError(
                 f"Cannot read image:\n{input_path}"
             )
 
         resized = self.resize_image(image)
 
-        os.makedirs(
-            Path(output_path).parent,
-            exist_ok=True
-        )
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        extension = Path(output_path).suffix.lower()
+        extension = output_path.suffix.lower()
 
         if extension in [".jpg", ".jpeg"]:
-
             cv2.imwrite(
                 str(output_path),
                 resized,
-                [
-                    cv2.IMWRITE_JPEG_QUALITY,
-                    95
-                ]
+                [cv2.IMWRITE_JPEG_QUALITY, 95]
+            )
+
+        elif extension == ".webp":
+            cv2.imwrite(
+                str(output_path),
+                resized,
+                [cv2.IMWRITE_WEBP_QUALITY, 95]
             )
 
         else:
-
-            cv2.imwrite(
-                str(output_path),
-                resized
-            )
+            cv2.imwrite(str(output_path), resized)
 
         return str(output_path)
 
@@ -109,48 +126,47 @@ class ImageResizer:
         )
 
         processed_paths = []
+        failed_paths = []
 
-        extensions = [
-            ".jpg",
-            ".jpeg",
-            ".png"
-        ]
+        # Sorted for deterministic ordering across runs
+        image_files = sorted([
+            f
+            for ext in SUPPORTED_EXTENSIONS
+            for f in input_folder.glob(f"*{ext}")
+        ])
 
-        image_files = []
+        total = len(image_files)
 
-        for ext in extensions:
-
-            image_files.extend(
-                input_folder.glob(f"*{ext}")
-            )
-
-        print(
-            f"[RESIZE] Images Found : {len(image_files)}"
+        self.progress_callback(
+            f"[RESIZE] Images Found: {total}"
         )
 
         for index, image_path in enumerate(image_files):
 
-            output_path = (
-                output_folder /
-                image_path.name
-            )
+            output_path = output_folder / image_path.name
 
-            print(
-                f"[RESIZE] ({index+1}/{len(image_files)}) "
+            self.progress_callback(
+                f"[RESIZE] ({index + 1}/{total}) "
                 f"{image_path.name}"
             )
 
-            self.process_image(
-                image_path,
-                output_path
-            )
+            try:
+                self.process_image(
+                    image_path,
+                    output_path
+                )
+                processed_paths.append(str(output_path))
 
-            processed_paths.append(
-                str(output_path)
-            )
+            except Exception as e:
+                self.progress_callback(
+                    f"[RESIZE ERROR] {image_path.name}: {e} — skipping"
+                )
+                failed_paths.append(str(image_path))
 
-        print(
-            "[RESIZE] Completed"
+        self.progress_callback(
+            f"[RESIZE] Completed — "
+            f"{len(processed_paths)} succeeded, "
+            f"{len(failed_paths)} failed"
         )
 
-        return processed_paths
+        return processed_paths, failed_paths

@@ -220,7 +220,7 @@ def render_input_section() -> tuple[list | None, str]:
 """,
             unsafe_allow_html=True,
         )
-        if st.button("Select Upload Mode", key="btn_mode_upload", use_container_width=True):
+        if st.button("Select Upload Mode", key="btn_mode_upload", width='stretch'):
             st.session_state.input_mode = "upload"
             st.rerun()
 
@@ -244,7 +244,7 @@ def render_input_section() -> tuple[list | None, str]:
 """,
             unsafe_allow_html=True,
         )
-        if st.button("Select Folder Mode", key="btn_mode_folder", use_container_width=True):
+        if st.button("Select Folder Mode", key="btn_mode_folder", width='stretch'):
             st.session_state.input_mode = "folder"
             st.rerun()
 

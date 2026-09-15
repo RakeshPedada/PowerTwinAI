@@ -113,5 +113,5 @@ def render_point_cloud(points):
 
     st.plotly_chart(
         fig,
-        use_container_width=True
+        width='stretch'
     )

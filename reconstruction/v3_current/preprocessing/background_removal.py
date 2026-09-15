@@ -12,21 +12,53 @@ processed images for reconstruction.
 
 This module is independent of the reconstruction pipeline
 and can be reused anywhere.
+
+Enhancements
+------------
+- Cached rembg session (singleton) to avoid reloading ONNX model
+- Force PNG output to preserve alpha channel
+- progress_callback support for UI integration
+- Per-image error handling with fallback (skip bad image)
+- Sorted + deterministic file ordering
+- WebP support added
 """
 
-import os
 from pathlib import Path
 
 import cv2
 import numpy as np
-from rembg import remove
+from rembg import remove, new_session
+
+
+SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
 
 
 class BackgroundRemover:
 
-    def __init__(self):
+    # Class-level session cache — loaded once, reused across all instances
+    _session = None
 
-        print("[BG] Background Remover Initialized")
+    def __init__(
+        self,
+        model_name: str = "u2net",
+        progress_callback=print
+    ):
+        self.progress_callback = progress_callback
+
+        if BackgroundRemover._session is None:
+            self.progress_callback(
+                f"[BG] Loading rembg model: {model_name} ..."
+            )
+            BackgroundRemover._session = new_session(model_name)
+            self.progress_callback(
+                "[BG] rembg model loaded and cached"
+            )
+        else:
+            self.progress_callback(
+                "[BG] Reusing cached rembg session"
+            )
+
+        self.session = BackgroundRemover._session
 
     def remove_background(self, image):
 
@@ -38,7 +70,11 @@ class BackgroundRemover:
         if not success:
             raise RuntimeError("Unable to encode image.")
 
-        output = remove(encoded.tobytes())
+        # Pass cached session — no ONNX reload
+        output = remove(
+            encoded.tobytes(),
+            session=self.session
+        )
 
         array = np.frombuffer(
             output,
@@ -64,22 +100,17 @@ class BackgroundRemover:
         )
 
         if image is None:
-
             raise RuntimeError(
                 f"Cannot read image:\n{input_path}"
             )
 
         result = self.remove_background(image)
 
-        os.makedirs(
-            Path(output_path).parent,
-            exist_ok=True
-        )
+        # Force PNG output to preserve alpha transparency
+        output_path = Path(output_path).with_suffix(".png")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        cv2.imwrite(
-            str(output_path),
-            result
-        )
+        cv2.imwrite(str(output_path), result)
 
         return str(output_path)
 
@@ -98,48 +129,50 @@ class BackgroundRemover:
         )
 
         processed_paths = []
+        failed_paths = []
 
-        extensions = [
-            ".jpg",
-            ".jpeg",
-            ".png"
-        ]
+        image_files = sorted([
+            f
+            for ext in SUPPORTED_EXTENSIONS
+            for f in input_folder.glob(f"*{ext}")
+        ])
 
-        image_files = []
+        total = len(image_files)
 
-        for ext in extensions:
-
-            image_files.extend(
-                input_folder.glob(f"*{ext}")
-            )
-
-        print(
-            f"[BG] Images Found : {len(image_files)}"
+        self.progress_callback(
+            f"[BG] Images Found: {total}"
         )
 
         for index, image_path in enumerate(image_files):
 
+            # Always output as PNG for alpha channel
             output_path = (
                 output_folder /
-                image_path.name
+                (image_path.stem + ".png")
             )
 
-            print(
-                f"[BG] ({index+1}/{len(image_files)}) "
+            self.progress_callback(
+                f"[BG] ({index + 1}/{total}) "
                 f"{image_path.name}"
             )
 
-            self.process_image(
-                image_path,
-                output_path
-            )
+            try:
+                self.process_image(
+                    image_path,
+                    output_path
+                )
+                processed_paths.append(str(output_path))
 
-            processed_paths.append(
-                str(output_path)
-            )
+            except Exception as e:
+                self.progress_callback(
+                    f"[BG ERROR] {image_path.name}: {e} — skipping"
+                )
+                failed_paths.append(str(image_path))
 
-        print(
-            "[BG] Background Removal Completed"
+        self.progress_callback(
+            f"[BG] Completed — "
+            f"{len(processed_paths)} succeeded, "
+            f"{len(failed_paths)} failed"
         )
 
-        return processed_paths
+        return processed_paths, failed_paths

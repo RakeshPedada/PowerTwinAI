@@ -80,5 +80,5 @@ def render_camera_trajectory(cameras):
 
     st.plotly_chart(
         fig,
-        use_container_width=True
+        width='stretch'
     )

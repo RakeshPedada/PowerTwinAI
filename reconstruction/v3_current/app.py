@@ -1,3 +1,29 @@
+# =========================================================
+# WINDOWS ASYNCIO FIX
+# Must be the very first thing — before streamlit or any
+# other import that touches the event loop.
+#
+# On Windows, Python 3.8+ defaults to ProactorEventLoop
+# which raises ConnectionResetError (WinError 10054)
+# whenever a browser tab refreshes or disconnects from
+# Streamlit's websocket. This is harmless noise but
+# pollutes logs. Fix: switch to SelectorEventLoop on
+# Windows, which handles socket cleanup cleanly.
+# =========================================================
+
+import sys
+import asyncio
+import logging
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(
+        asyncio.WindowsSelectorEventLoopPolicy()
+    )
+
+# Suppress the residual WinError 10054 log line that
+# can still appear during shutdown even with the policy fix
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px

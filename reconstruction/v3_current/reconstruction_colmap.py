@@ -426,23 +426,76 @@ def run_reconstruction(
     # STATISTICAL OUTLIER REMOVAL
     # =====================================================
 
+    # =====================================================
+    # STAGE 1 — STATISTICAL OUTLIER REMOVAL
+    # Removes points whose distance to neighbours is an
+    # outlier relative to the global point distribution.
+    # Stricter than before: nb_neighbors=30, std_ratio=1.5
+    # =====================================================
+
     if len(dense_points) >= 50:
 
         try:
-
-            pcd, _ = (
-                pcd.remove_statistical_outlier(
-                    nb_neighbors=20,
-                    std_ratio=2.0
-                )
+            pcd, _ = pcd.remove_statistical_outlier(
+                nb_neighbors=30,   # was 20 — more context
+                std_ratio=1.5      # was 2.0 — stricter
             )
-
+            progress_callback(
+                f"[CLEANING] After statistical filter: "
+                f"{len(np.asarray(pcd.points)):,} points"
+            )
         except Exception as e:
+            print(f"[WARNING] Statistical outlier removal failed: {e}")
 
-            print(
-                "[WARNING] Point-cloud cleaning "
-                f"failed: {e}"
+    # =====================================================
+    # STAGE 2 — RADIUS OUTLIER REMOVAL
+    # Removes isolated points that have fewer than
+    # min_nb_points neighbours within a sphere of radius.
+    # Kills floating blobs that statistical removal misses.
+    # =====================================================
+
+    if len(np.asarray(pcd.points)) >= 50:
+
+        try:
+            # Estimate a sensible radius from point cloud extent
+            pts = np.asarray(pcd.points)
+            extent = np.max(pts, axis=0) - np.min(pts, axis=0)
+            radius = float(np.mean(extent)) * 0.02  # 2% of mean extent
+
+            pcd, _ = pcd.remove_radius_outlier(
+                nb_points=8,
+                radius=max(radius, 1e-4)
             )
+            progress_callback(
+                f"[CLEANING] After radius filter: "
+                f"{len(np.asarray(pcd.points)):,} points"
+            )
+        except Exception as e:
+            print(f"[WARNING] Radius outlier removal failed: {e}")
+
+    # =====================================================
+    # STAGE 3 — VOXEL DOWNSAMPLING
+    # Enforces uniform point density across the cloud.
+    # Prevents over-dense regions from dominating the mesh
+    # and speeds up Poisson surface reconstruction.
+    # =====================================================
+
+    if len(np.asarray(pcd.points)) >= 100:
+
+        try:
+            pts = np.asarray(pcd.points)
+            extent = np.max(pts, axis=0) - np.min(pts, axis=0)
+            voxel_size = float(np.mean(extent)) * 0.005  # 0.5% of extent
+
+            pcd = pcd.voxel_down_sample(
+                voxel_size=max(voxel_size, 1e-5)
+            )
+            progress_callback(
+                f"[CLEANING] After voxel downsample: "
+                f"{len(np.asarray(pcd.points)):,} points"
+            )
+        except Exception as e:
+            print(f"[WARNING] Voxel downsampling failed: {e}")
 
     final_points = np.asarray(
         pcd.points,
@@ -534,31 +587,121 @@ def run_reconstruction(
     # PAIR LOGS
     # =====================================================
 
+    # =====================================================
+    # PAIR LOGS — derived from COLMAP sparse model
+    # =====================================================
+    # The UI expects a CSV with columns:
+    #   pair, status, confidence, inliers, points
+    #
+    # We build one row per image using data already loaded
+    # from the COLMAP sparse model:
+    #   - registered images → status=registered
+    #   - unregistered images → status=failed
+    #   - confidence = normalised track length (0–1)
+    #   - inliers = points visible in this image
+    #   - points = same (sparse 3D points observed)
+    # =====================================================
+
     pair_logs = []
 
-    pair_log_path = os.path.join(
-        "output",
-        "pair_logs.csv"
+    pair_log_path = os.path.join("output", "pair_logs.csv")
+
+    # Build a per-image visibility count from points3D.txt
+    # Each 3D point records which image IDs observe it.
+    image_point_count = {}  # image_name -> int
+
+    for img_name in registered_images:
+        image_point_count[img_name] = 0
+
+    # Count how many sparse points each registered image sees
+    # We use the colmap points2D data embedded in images.txt
+    # (already parsed into registered_images via colmap_loader).
+    # Fallback: count from sparse_points length per image.
+    # Best proxy available without re-parsing the DB:
+    # distribute sparse_points evenly as a lower bound.
+    total_sparse = max(len(sparse_points), 1)
+
+    # Read images.txt POINTS2D lines to get exact per-image counts
+    images_txt = os.path.join("colmap_data", "images.txt")
+    try:
+        with open(images_txt, "r", encoding="utf-8") as fh:
+            lines_txt = fh.readlines()
+
+        i = 0
+        while i < len(lines_txt):
+            line = lines_txt[i].strip()
+            if not line or line.startswith("#"):
+                i += 1
+                continue
+            parts = line.split()
+            if len(parts) >= 10:
+                # This is a pose line — next line is POINTS2D
+                img_name = " ".join(parts[9:])
+                i += 1
+                if i < len(lines_txt):
+                    pts2d_line = lines_txt[i].strip()
+                    # Each point2D entry: X Y POINT3D_ID
+                    # Count entries with POINT3D_ID != -1
+                    pts2d_parts = pts2d_line.split()
+                    visible = sum(
+                        1 for k in range(2, len(pts2d_parts), 3)
+                        if pts2d_parts[k] != "-1"
+                    )
+                    image_point_count[img_name] = visible
+            i += 1
+    except Exception as e:
+        progress_callback(f"[PAIR LOGS] Could not read points2D: {e}")
+
+    # Compute max for normalisation
+    max_pts = max(image_point_count.values(), default=1) if image_point_count else 1
+
+    # All uploaded filenames (stems only, to match COLMAP jpg names)
+    all_image_names = {
+        f["name"] for f in uploaded_files
+    }
+
+    with open(pair_log_path, "w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["pair", "status", "confidence", "inliers", "points"])
+
+        # Registered images
+        for img_name, pose in registered_images.items():
+            pts_count = image_point_count.get(img_name, 0)
+            confidence = round(pts_count / max_pts, 4) if max_pts > 0 else 0.0
+            writer.writerow([
+                img_name,
+                "registered",
+                confidence,
+                pts_count,
+                pts_count,
+            ])
+            pair_logs.append({
+                "pair": img_name,
+                "status": "registered",
+                "confidence": confidence,
+                "inliers": pts_count,
+                "points": pts_count,
+            })
+
+        # Unregistered images (uploaded but not in sparse model)
+        registered_names = set(registered_images.keys())
+        for img_name in all_image_names:
+            # COLMAP converts to .jpg stems — match both
+            stem = os.path.splitext(img_name)[0]
+            jpg_name = stem + ".jpg"
+            if img_name not in registered_names and jpg_name not in registered_names:
+                writer.writerow([img_name, "failed", 0.0, 0, 0])
+                pair_logs.append({
+                    "pair": img_name,
+                    "status": "failed",
+                    "confidence": 0.0,
+                    "inliers": 0,
+                    "points": 0,
+                })
+
+    progress_callback(
+        f"[PAIR LOGS] Written {len(pair_logs)} rows → {pair_log_path}"
     )
-
-    with open(
-        pair_log_path,
-        "w",
-        newline="",
-        encoding="utf-8"
-    ) as csv_file:
-
-        writer = csv.writer(
-            csv_file
-        )
-
-        writer.writerow([
-            "pair",
-            "status",
-            "confidence",
-            "inliers",
-            "points"
-        ])
 
     # =====================================================
     # ANALYTICS

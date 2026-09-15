@@ -1,5 +1,15 @@
-import os
 import sys
+import asyncio
+import logging
+
+# Windows ProactorEventLoop fix — eliminates WinError 10054 spam
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(
+        asyncio.WindowsSelectorEventLoopPolicy()
+    )
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+
+import os
 import json
 import time
 import traceback
@@ -117,18 +127,38 @@ try:
         "[PREPROCESS] Starting preprocessing..."
     )
 
-    processed_image_paths = preprocess_images(
+    preprocess_result = preprocess_images(
         image_paths,
         progress_callback=log_message
     )
-    if len(processed_image_paths) == 0:
 
-        raise RuntimeError(
-            "No images available after preprocessing."
+    # preprocess_images returns a dict — extract the paths list
+    if isinstance(preprocess_result, dict):
+        processed_image_paths = preprocess_result.get("processed_paths", [])
+        failed_q  = preprocess_result.get("failed_quality", [])
+        warned_q  = preprocess_result.get("warned_quality", [])
+        failed_bg = preprocess_result.get("failed_bg", [])
+        log_message(
+            f"[PREPROCESS] Quality — "
+            f"failed: {len(failed_q)}, warned: {len(warned_q)}"
         )
-    print(
-    f"[DEBUG] Processed images: {len(processed_image_paths)}"
-)
+        if failed_bg:
+            log_message(
+                f"[PREPROCESS] BG removal failed on "
+                f"{len(failed_bg)} image(s)"
+            )
+    else:
+        # Fallback: old code returned a plain list
+        processed_image_paths = preprocess_result or []
+
+    if len(processed_image_paths) == 0:
+        raise RuntimeError(
+            "No images available after preprocessing. "
+            "Check quality report for details."
+        )
+
+    print(f"[DEBUG] Processed images: {len(processed_image_paths)}")
+    print(f"[DEBUG] First processed path: {processed_image_paths[0]}")
 
     log_message(
         f"[PREPROCESS] Images after preprocessing: {len(processed_image_paths)}"

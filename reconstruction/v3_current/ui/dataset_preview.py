@@ -48,7 +48,7 @@ def render_dataset_preview(uploaded_files, mode):
                 st.image(
                     image,
                     caption=caption,
-                    use_container_width=True
+                    width='stretch'
                 )
 
     if len(uploaded_files) > preview_limit:

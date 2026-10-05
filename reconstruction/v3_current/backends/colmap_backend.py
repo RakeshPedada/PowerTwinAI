@@ -85,11 +85,10 @@ def run_colmap_backend(
     # =====================================================
 
     print(
-        "[BACKEND] Starting AI Dense Reconstruction (CPU Mode)..."
+        "[BACKEND] Starting COLMAP dense reconstruction..."
     )
 
-    from backends.ai_dense_fusion import run_ai_dense_fusion
-    dense_ply_path = run_ai_dense_fusion()
+    dense_ply_path = run_colmap_dense()
 
     if not dense_ply_path:
 

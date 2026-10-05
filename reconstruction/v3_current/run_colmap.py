@@ -214,8 +214,8 @@ def run_colmap(image_paths):
             "--ImageReader.single_camera",      "1",
             "--FeatureExtraction.use_gpu",       "0",     # CPU — no CUDA
             # ── Accuracy parameters ──────────────────────────────────────────
-            "--SiftExtraction.max_num_features", "32768", # 4× default (8192)
-            "--SiftExtraction.peak_threshold",   "0.002", # lower = finer features
+            "--SiftExtraction.max_num_features", "16384", # 2× default (8192)
+            "--SiftExtraction.peak_threshold",   "0.004", # lower = more features
             "--SiftExtraction.edge_threshold",   "16",    # wider = keep edge features
             "--SiftExtraction.domain_size_pooling", "1",  # DSP-SIFT descriptors
         ],

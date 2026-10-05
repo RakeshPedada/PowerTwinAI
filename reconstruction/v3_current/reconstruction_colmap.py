@@ -558,7 +558,6 @@ def run_reconstruction(
         mesh_result = generate_mesh(
             final_points,
             final_colors,
-            camera_positions,
             output_dir="output"
         )
 

@@ -30,7 +30,7 @@ from PIL import Image
 
 # ── Supported Formats ────────────────────────────────────────────────────────
 
-VALID_FORMATS = {"jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"}
+VALID_FORMATS = {"jpg", "jpeg", "png", "webp"}
 
 # ── Resolution Thresholds ─────────────────────────────────────────────────────
 

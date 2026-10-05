@@ -25,7 +25,7 @@ from pathlib import Path
 import cv2
 
 
-SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"]
+SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
 
 
 class ImageResizer:

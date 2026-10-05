@@ -30,7 +30,7 @@ import numpy as np
 from rembg import remove, new_session
 
 
-SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"]
+SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
 
 
 class BackgroundRemover:

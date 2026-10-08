@@ -35,15 +35,16 @@ class BackendManager:
 
         self.backend = backend.lower()
 
-    def run(self, image_paths):
+    def run(self, image_paths, config=None):
         """
-        Execute the selected reconstruction backend.
+        Execute the selected reconstruction backend with active configuration.
         """
 
         if self.backend == "colmap":
 
             return run_colmap_backend(
-                image_paths
+                image_paths,
+                config=config
             )
 
         raise ValueError(

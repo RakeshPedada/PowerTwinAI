@@ -1,7 +1,16 @@
 import os
+import sys
 import time
 import csv
+import json
 import gc
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 import cv2
 import numpy as np
 import open3d as o3d
@@ -201,8 +210,10 @@ def build_analytics(
 def run_reconstruction(
     uploaded_files,
     dense_ply_path,
-    progress_callback=print
+    progress_callback=print,
+    config=None
 ):
+    config = config or {}
     """
     Process the COLMAP reconstruction results.
 
@@ -317,6 +328,18 @@ def run_reconstruction(
     # LOAD COLMAP DENSE POINT CLOUD
     # =====================================================
 
+    from mesh_generator import is_mesh_ply
+
+    if is_mesh_ply(dense_ply_path):
+        progress_callback(
+            "[INPUT CHECK] Input file is verified as a 3D surface mesh with triangular faces."
+        )
+    else:
+        progress_callback(
+            "[INPUT CHECK] Input file is a 3D point cloud (vertices only, no face elements). "
+            "Pipeline will perform normal estimation & Poisson surface meshing."
+        )
+
     progress_callback(
         "[COLMAP-DENSE] Loading fused dense point cloud..."
     )
@@ -426,41 +449,36 @@ def run_reconstruction(
     # STATISTICAL OUTLIER REMOVAL
     # =====================================================
 
+    raw_dense_points_count = len(dense_points)
+    progress_callback(f"[CLEANING] Raw dense points: {raw_dense_points_count:,}")
+
     # =====================================================
     # STAGE 1 — STATISTICAL OUTLIER REMOVAL
-    # Removes points whose distance to neighbours is an
-    # outlier relative to the global point distribution.
-    # Stricter than before: nb_neighbors=30, std_ratio=1.5
     # =====================================================
+    outlier_std = float(config.get("outlier_std_ratio", 1.8))
+    outlier_k = int(config.get("outlier_nb_neighbors", 25))
 
-    if len(dense_points) >= 50:
-
+    if len(dense_points) >= outlier_k:
         try:
             pcd, _ = pcd.remove_statistical_outlier(
-                nb_neighbors=30,   # was 20 — more context
-                std_ratio=1.5      # was 2.0 — stricter
+                nb_neighbors=outlier_k,
+                std_ratio=outlier_std
             )
             progress_callback(
-                f"[CLEANING] After statistical filter: "
+                f"[CLEANING] After statistical filter (k={outlier_k}, std={outlier_std}): "
                 f"{len(np.asarray(pcd.points)):,} points"
             )
         except Exception as e:
             print(f"[WARNING] Statistical outlier removal failed: {e}")
 
     # =====================================================
-    # STAGE 2 — RADIUS OUTLIER REMOVAL
-    # Removes isolated points that have fewer than
-    # min_nb_points neighbours within a sphere of radius.
-    # Kills floating blobs that statistical removal misses.
+    # STAGE 2 — RADIUS OUTLIER REMOVAL (Floating blob removal)
     # =====================================================
-
     if len(np.asarray(pcd.points)) >= 50:
-
         try:
-            # Estimate a sensible radius from point cloud extent
             pts = np.asarray(pcd.points)
             extent = np.max(pts, axis=0) - np.min(pts, axis=0)
-            radius = float(np.mean(extent)) * 0.02  # 2% of mean extent
+            radius = float(np.mean(extent)) * 0.025
 
             pcd, _ = pcd.remove_radius_outlier(
                 nb_points=8,
@@ -474,28 +492,58 @@ def run_reconstruction(
             print(f"[WARNING] Radius outlier removal failed: {e}")
 
     # =====================================================
-    # STAGE 3 — VOXEL DOWNSAMPLING
-    # Enforces uniform point density across the cloud.
-    # Prevents over-dense regions from dominating the mesh
-    # and speeds up Poisson surface reconstruction.
+    # STAGE 3 — VOXEL DOWNSAMPLING (OPTIONAL ONLY)
+    # In High Density / Standard mode, voxel downsampling is DISABLED
+    # to preserve all genuinely reconstructed multi-view points.
     # =====================================================
-
-    if len(np.asarray(pcd.points)) >= 100:
-
+    if config.get("apply_voxel_downsampling", False) and len(np.asarray(pcd.points)) >= 100:
         try:
             pts = np.asarray(pcd.points)
             extent = np.max(pts, axis=0) - np.min(pts, axis=0)
-            voxel_size = float(np.mean(extent)) * 0.005  # 0.5% of extent
-
-            pcd = pcd.voxel_down_sample(
-                voxel_size=max(voxel_size, 1e-5)
-            )
+            voxel_size = float(np.mean(extent)) * 0.003
+            pcd = pcd.voxel_down_sample(voxel_size=max(voxel_size, 1e-5))
             progress_callback(
-                f"[CLEANING] After voxel downsample: "
-                f"{len(np.asarray(pcd.points)):,} points"
+                f"[CLEANING] After voxel downsample: {len(np.asarray(pcd.points)):,} points"
             )
         except Exception as e:
             print(f"[WARNING] Voxel downsampling failed: {e}")
+
+    # =====================================================
+    # STAGE 4 — NORMAL ESTIMATION & ORIENTATION
+    # =====================================================
+    if len(np.asarray(pcd.points)) >= 20:
+        try:
+            progress_callback("[CLEANING] Estimating normals and establishing tangent plane orientation...")
+            dists = pcd.compute_nearest_neighbor_distance()
+            avg_d = float(np.median(dists)) if len(dists) > 0 else 0.05
+            pcd.estimate_normals(
+                search_param=o3d.geometry.KDTreeSearchParamHybrid(
+                    radius=max(avg_d * 3.5, 0.02),
+                    max_nn=40
+                )
+            )
+            try:
+                pcd.orient_normals_consistent_tangent_plane(k=min(25, max(10, len(pcd.points) // 20)))
+            except Exception:
+                pass
+            pcd.normalize_normals()
+            progress_callback("[CLEANING] Normals successfully oriented.")
+        except Exception as e:
+            print(f"[WARNING] Normal estimation warning: {e}")
+
+    # =====================================================
+    # STAGE 5 — HOLE & COVERAGE ANALYSIS (Requirement 5)
+    # =====================================================
+    coverage_info = {}
+    try:
+        from core.coverage_analyzer import analyze_point_cloud_coverage
+        coverage_info = analyze_point_cloud_coverage(pcd)
+        if coverage_info.get("has_coverage_warning"):
+            progress_callback(f"[COVERAGE WARNING] {coverage_info.get('warning_message')}")
+        else:
+            progress_callback(f"[COVERAGE] Completeness score: {coverage_info.get('coverage_score')}% (no critical gaps detected)")
+    except Exception as e:
+        print(f"[WARNING] Coverage analysis warning: {e}")
 
     final_points = np.asarray(
         pcd.points,
@@ -528,37 +576,49 @@ def run_reconstruction(
     )
 
     # =====================================================
-    # SAVE FINAL POINT CLOUD
+    # SAVE FINAL POINT CLOUD (Structured & Legacy outputs)
     # =====================================================
 
     ply_path = save_point_cloud(
         final_points,
         final_colors,
-        os.path.join(
-            "output",
-            "reconstruction.ply"
-        )
+        os.path.join("output", "reconstruction.ply")
     )
+    # Also save to outputs/dense/filtered_pointcloud.ply (Requirement 13)
+    structured_filtered_dest = os.path.join("outputs", "dense", "filtered_pointcloud.ply")
+    os.makedirs(os.path.dirname(structured_filtered_dest), exist_ok=True)
+    save_point_cloud(final_points, final_colors, structured_filtered_dest)
 
     progress_callback(
-        f"[OUTPUT] Point Cloud Saved: "
-        f"{ply_path}"
+        f"[OUTPUT] Filtered Point Cloud Saved: {ply_path} and {structured_filtered_dest}"
     )
 
     # =====================================================
-    # MESH
+    # MESH GENERATION (Poisson / Ball Pivoting)
     # =====================================================
 
-    progress_callback(
-        "[MESH] Generating Mesh..."
-    )
+    meshing_method = config.get("meshing_method", "Poisson")
+    poisson_depth = int(config.get("poisson_depth", 8))
+    density_trim = float(config.get("mesh_density_trim", 0.10))
+    remove_floating = bool(config.get("remove_floating_components", True))
+
+    progress_callback(f"[MESH] Generating Surface Mesh via {meshing_method} (depth={poisson_depth})...")
 
     try:
-
         mesh_result = generate_mesh(
             final_points,
             final_colors,
-            output_dir="output"
+            output_dir="output",
+            output_name="mesh",
+            method=meshing_method,
+            poisson_depth=poisson_depth,
+            density_quantile=density_trim,
+            outlier_std_ratio=outlier_std,
+            remove_floating_components=remove_floating,
+            pcd_distance_trim=True,
+            seal_holes=True,
+            ml_complete_blind_spots=bool(config.get("ml_complete_blind_spots", False)),
+            progress_callback=progress_callback
         )
 
         gc.collect()
@@ -700,7 +760,7 @@ def run_reconstruction(
                 })
 
     progress_callback(
-        f"[PAIR LOGS] Written {len(pair_logs)} rows → {pair_log_path}"
+        f"[PAIR LOGS] Written {len(pair_logs)} rows -> {pair_log_path}"
     )
 
     # =====================================================
@@ -719,6 +779,73 @@ def run_reconstruction(
         total_input_images,
         registered_images
     )
+
+    from core.gpu_detector import get_gpu_info
+    gpu_info = get_gpu_info()
+
+    retention_pct = round((len(final_points) / max(raw_dense_points_count, 1)) * 100.0, 1)
+    analytics["raw_dense_points"] = int(raw_dense_points_count)
+    analytics["filtered_points"] = len(final_points)
+    analytics["retention_ratio"] = retention_pct
+    analytics["coverage_score"] = coverage_info.get("coverage_score", 0.0)
+    analytics["has_coverage_warning"] = coverage_info.get("has_coverage_warning", False)
+    analytics["coverage_warning"] = coverage_info.get("warning_message", None)
+    analytics["coverage_info"] = coverage_info
+    analytics["gpu_info"] = gpu_info
+    analytics["config"] = config
+    analytics["reconstruction_mode"] = config.get("name", "Standard")
+
+    # Load ML Pair Selection Telemetry if present
+    ml_telemetry_file = os.path.join("output", "ml_pair_telemetry.json")
+    if not os.path.exists(ml_telemetry_file):
+        ml_telemetry_file = os.path.join("temp_session", "ml_pair_telemetry.json")
+    if os.path.exists(ml_telemetry_file):
+        try:
+            with open(ml_telemetry_file, "r", encoding="utf-8") as tf:
+                analytics["ml_pair_telemetry"] = json.load(tf)
+        except Exception:
+            pass
+
+    # 20-Metric Diagnostic Analysis Report
+    try:
+        from core.reconstruction_diagnostics import generate_diagnostics_report
+        diagnostics = generate_diagnostics_report(
+            colmap_dir="colmap_data",
+            colmap_workspace="colmap_workspace",
+            output_dir="output",
+            mesh_path=os.path.join("output", "mesh.ply"),
+            pointcloud_path=os.path.join("output", "reconstruction.ply"),
+            total_input_images=total_input_images
+        )
+        analytics["diagnostics"] = diagnostics
+        progress_callback(
+            f"[DIAGNOSTICS] 20-Metric Diagnostic Report Generated: {diagnostics['mesh_vertices']:,} verts, "
+            f"{diagnostics['mesh_faces']:,} faces, {diagnostics['boundary_edges']} boundary edges, "
+            f"{diagnostics['num_detected_holes']} holes."
+        )
+    except Exception as e:
+        print(f"[WARNING] Diagnostics generation error: {e}")
+
+    # Neuralangelo Dataset Preparation (Requirement 12 & 13)
+    try:
+        from backends.neuralangelo_backend import prepare_neuralangelo_dataset
+        na_prep = prepare_neuralangelo_dataset(
+            images_dir=os.path.join("colmap_workspace", "images"),
+            colmap_data_dir="colmap_data",
+            output_dir=os.path.join("outputs", "neuralangelo")
+        )
+        analytics["neuralangelo_ready"] = True
+        progress_callback(f"[NEURALANGELO] Dataset exported ({na_prep['num_frames']} frames) to outputs/neuralangelo")
+    except Exception as e:
+        analytics["neuralangelo_ready"] = False
+        print(f"[NEURALANGELO] Preparation note: {e}")
+
+    if mesh_result is not None:
+        analytics["mesh_path"] = str(mesh_result.get("ply", ""))
+        analytics["mesh_obj_path"] = str(mesh_result.get("obj", ""))
+        analytics["mesh_vertices"] = int(mesh_result.get("vertices", 0))
+        analytics["mesh_triangles"] = int(mesh_result.get("triangles", 0))
+        analytics["has_faces"] = bool(mesh_result.get("has_faces", False))
 
     # =====================================================
     # RESULT DATA

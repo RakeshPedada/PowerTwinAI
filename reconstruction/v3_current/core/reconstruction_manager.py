@@ -9,6 +9,12 @@ def prepare_workspace(
     status_file,
     result_file
 ):
+    # Terminate any lingering COLMAP processes to prevent SQLite file locks
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/F", "/IM", "colmap.exe"], capture_output=True)
+        except Exception:
+            pass
 
     os.makedirs(temp_dir, exist_ok=True)
 
@@ -20,10 +26,23 @@ def prepare_workspace(
     ) as f:
         f.write("")
 
-    for file in [status_file, result_file]:
+    if os.path.exists(result_file):
+        try:
+            os.remove(result_file)
+        except Exception:
+            pass
 
-        if os.path.exists(file):
-            os.remove(file)
+    # Immediately initialize status file to RUNNING to guarantee UI state consistency
+    try:
+        with open(status_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "status": "RUNNING",
+                "step": "Initializing Pipeline Environment...",
+                "progress": 0.03,
+                "message": "Starting background reconstruction worker..."
+            }, f, indent=2)
+    except Exception:
+        pass
 
 
 def save_uploaded_images(
@@ -110,10 +129,61 @@ def launch_reconstruction(log_file=None):
     if hasattr(subprocess, "CREATE_NEW_CONSOLE"):
         creation_flags = subprocess.CREATE_NEW_CONSOLE
 
-    subprocess.Popen(
+    proc = subprocess.Popen(
         [python_bin, "-u", script_path],
         cwd=BASE_DIR,
         stdout=log_handle,
         stderr=subprocess.STDOUT,
         creationflags=creation_flags
-    )
+    )
+
+    # Save PID so watchdog and UI can track active process
+    pid_file = os.path.join(os.path.dirname(target_log_file), "runner.pid")
+    try:
+        with open(pid_file, "w", encoding="utf-8") as pf:
+            pf.write(str(proc.pid))
+    except Exception:
+        pass
+
+    return proc
+
+
+def cancel_reconstruction(temp_dir=None):
+    """
+    Safely terminate active reconstruction processes (COLMAP and Python runner).
+    """
+    from config.paths import TEMP_DIR
+    target_dir = temp_dir or TEMP_DIR
+    pid_file = os.path.join(target_dir, "runner.pid")
+
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file, "r") as pf:
+                pid = int(pf.read().strip())
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+            else:
+                os.kill(pid, 9)
+        except Exception:
+            pass
+        try:
+            os.remove(pid_file)
+        except Exception:
+            pass
+
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/F", "/IM", "colmap.exe"], capture_output=True)
+        except Exception:
+            pass
+
+    status_file = os.path.join(target_dir, "status.json")
+    try:
+        with open(status_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "status": "FAILED",
+                "step": "Pipeline cancelled by user.",
+                "progress": 0.0
+            }, f, indent=2)
+    except Exception:
+        pass

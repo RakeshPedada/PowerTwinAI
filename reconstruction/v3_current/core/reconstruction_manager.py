@@ -126,8 +126,8 @@ def launch_reconstruction(log_file=None):
     log_handle = open(target_log_file, "a", encoding="utf-8")
 
     creation_flags = 0
-    if hasattr(subprocess, "CREATE_NEW_CONSOLE"):
-        creation_flags = subprocess.CREATE_NEW_CONSOLE
+    if hasattr(subprocess, "CREATE_NO_WINDOW"):
+        creation_flags = subprocess.CREATE_NO_WINDOW
 
     proc = subprocess.Popen(
         [python_bin, "-u", script_path],

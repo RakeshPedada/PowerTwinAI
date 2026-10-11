@@ -124,6 +124,9 @@ def run_colmap_dense(
         dense_stereo_succeeded = True
 
     except Exception as e:
+        if isinstance(e, subprocess.CalledProcessError) and e.returncode in (3221225786, -1073741510, -2, 130):
+            print(f"[COLMAP-DENSE] Interrupted or cancelled (exit code {e.returncode}).")
+            raise RuntimeError("[COLMAP-DENSE] Pipeline was cancelled or interrupted.")
         print(
             f"[COLMAP-DENSE] Dense stereo requires CUDA (not supported by installed COLMAP build or current GPU: {gpu_info.get('name', 'CPU')}).\n"
             f"[COLMAP-DENSE] Using high-precision triangulated multi-view model: {e}"

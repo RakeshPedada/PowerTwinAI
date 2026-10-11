@@ -253,6 +253,9 @@ def run_colmap(image_paths, config=None):
     result = subprocess.run(cmd_feat, capture_output=False, env=qt_env, cwd=colmap_cwd)
 
     if result.returncode != 0:
+        if result.returncode in (3221225786, -1073741510, -2, 130):
+            print(f"[COLMAP] SIFT extraction interrupted or cancelled (exit code {result.returncode}).")
+            raise RuntimeError(f"[COLMAP] Reconstruction was cancelled or interrupted.")
         print(f"[COLMAP] WARNING: SIFT extraction exited with {result.returncode}. Retrying with resilient fallback settings...")
         fallback_cmd = [
             colmap_bin,
@@ -269,6 +272,9 @@ def run_colmap(image_paths, config=None):
         ]
         result = subprocess.run(fallback_cmd, capture_output=False, env=qt_env, cwd=colmap_cwd)
         if result.returncode != 0:
+            if result.returncode in (3221225786, -1073741510, -2, 130):
+                print(f"[COLMAP] SIFT extraction interrupted or cancelled (exit code {result.returncode}).")
+                raise RuntimeError(f"[COLMAP] Reconstruction was cancelled or interrupted.")
             raise RuntimeError(
                 f"[COLMAP] feature_extractor failed even with resilient settings "
                 f"(exit code {result.returncode})"
@@ -400,6 +406,9 @@ def run_colmap(image_paths, config=None):
     )
 
     if result.returncode != 0:
+        if result.returncode in (3221225786, -1073741510, -2, 130):
+            print(f"[COLMAP] Feature matching interrupted or cancelled (exit code {result.returncode}).")
+            raise RuntimeError(f"[COLMAP] Reconstruction was cancelled or interrupted.")
         raise RuntimeError(
             f"[COLMAP] feature matcher failed "
             f"(exit code {result.returncode})"
@@ -432,6 +441,9 @@ def run_colmap(image_paths, config=None):
     )
 
     if result.returncode != 0:
+        if result.returncode in (3221225786, -1073741510, -2, 130):
+            print(f"[COLMAP] Sparse mapper interrupted or cancelled (exit code {result.returncode}).")
+            raise RuntimeError(f"[COLMAP] Reconstruction was cancelled or interrupted.")
         raise RuntimeError(
             f"[COLMAP] mapper failed "
             f"(exit code {result.returncode})"

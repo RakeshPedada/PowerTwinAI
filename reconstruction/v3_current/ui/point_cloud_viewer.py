@@ -13,17 +13,29 @@ from config.settings import (
 )
 
 
-def render_point_cloud(points):
+def render_point_cloud(points, colors=None, title="🌐 3D Point Cloud Reconstruction", key=None):
     """
-    Render the reconstructed point cloud.
+    Render the reconstructed point cloud with support for photorealistic
+    RGB colors from the original dataset.
     """
+    import hashlib
+    radio_key = key or f"pc_color_mode_{hashlib.md5(title.encode('utf-8')).hexdigest()[:8]}"
 
     st.markdown(
-        "<div class='section-title'>🌐 3D Point Cloud Reconstruction</div>",
+        f"<div class='section-title'>{title}</div>",
         unsafe_allow_html=True
     )
 
+    if colors is None:
+        colors = st.session_state.get("reconstruction_colors")
+
     points = np.asarray(points, dtype=np.float64)
+    has_colors = False
+
+    if colors is not None:
+        colors = np.asarray(colors, dtype=np.float64)
+        if len(colors) == len(points):
+            has_colors = True
 
     points = np.nan_to_num(
         points,
@@ -34,6 +46,8 @@ def render_point_cloud(points):
 
     mask = np.linalg.norm(points, axis=1) > 0
     points = points[mask]
+    if has_colors:
+        colors = colors[mask]
 
     st.write(f"Valid reconstruction points: {len(points):,}")
 
@@ -53,9 +67,9 @@ def render_point_cloud(points):
         DISPLAY_OUTLIER_PERCENTILE
     )
 
-    display_points = points[
-        distances < threshold
-    ]
+    keep_mask = distances < threshold
+    display_points = points[keep_mask]
+    display_colors = colors[keep_mask] if has_colors else None
 
     st.write(
         f"Display points after outlier filtering: {len(display_points):,}"
@@ -77,6 +91,46 @@ def render_point_cloud(points):
         )
 
         display_points = display_points[idx]
+        if display_colors is not None:
+            display_colors = display_colors[idx]
+
+    # Color scheme selector: photorealistic RGB vs height elevation
+    color_options = (
+        ["Photorealistic RGB (Original Dataset)", "Height Map Elevation (Turbo)"]
+        if has_colors
+        else ["Height Map Elevation (Turbo)"]
+    )
+
+    selected_mode = st.radio(
+        "Point Cloud Color Scheme",
+        color_options,
+        index=0,
+        horizontal=True,
+        key=radio_key,
+        help="Switch between true photographic colors from your dataset and pseudo-color height mapping."
+    )
+
+    if selected_mode.startswith("Photorealistic") and display_colors is not None:
+        c_vals = display_colors.copy()
+        if np.max(c_vals) <= 1.01:
+            c_vals = (c_vals * 255.0).astype(int)
+        else:
+            c_vals = c_vals.astype(int)
+        c_vals = np.clip(c_vals, 0, 255)
+        marker_color = [f"rgb({r},{g},{b})" for r, g, b in c_vals]
+
+        marker_dict = dict(
+            size=POINT_MARKER_SIZE,
+            color=marker_color,
+            opacity=POINT_OPACITY
+        )
+    else:
+        marker_dict = dict(
+            size=POINT_MARKER_SIZE,
+            color=display_points[:, 2],
+            colorscale="Turbo",
+            opacity=POINT_OPACITY
+        )
 
     fig = go.Figure()
 
@@ -86,12 +140,7 @@ def render_point_cloud(points):
             y=display_points[:, 1],
             z=display_points[:, 2],
             mode="markers",
-            marker=dict(
-                size=POINT_MARKER_SIZE,
-                color=display_points[:, 2],
-                colorscale="Turbo",
-                opacity=POINT_OPACITY
-            )
+            marker=marker_dict
         )
     )
 

@@ -36,6 +36,7 @@ try:
         STATUS_FILE,
         RESULT_FILE,
         IMAGE_PATHS_FILE,
+        CONFIG_FILE,
     )
 except Exception:
     TEMP_DIR = "temp_session"
@@ -66,27 +67,43 @@ def log_message(message):
 # STATUS
 # =========================================================
 
-def save_status(status):
-
-    with open(
-        STATUS_FILE,
-        "w"
-    ) as f:
-
-        json.dump(
-            {"status": status},
-            f
-        )
+def save_status(status, step=None, progress=None):
+    try:
+        data = {"status": status}
+        if step is not None:
+            data["step"] = step
+        if progress is not None:
+            data["progress"] = progress
+        os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
+        tmp_status = STATUS_FILE + ".tmp"
+        with open(tmp_status, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_status, STATUS_FILE)
+    except Exception:
+        pass
 
 # =========================================================
 # MAIN
 # =========================================================
 
 try:
+    save_status("RUNNING", step="Initializing reconstruction modules...", progress=0.04)
     log_message("[INIT] Loading reconstruction modules...")
     from reconstruction_colmap import run_reconstruction
     from backends.backend_manager import BackendManager
     from preprocessing.preprocessing_manager import preprocess_images
+    import open3d as o3d
+
+    # Load active reconstruction configuration
+    config = {}
+    config_file_path = globals().get("CONFIG_FILE", os.path.join(TEMP_DIR, "reconstruction_config.json"))
+    if os.path.exists(config_file_path):
+        try:
+            with open(config_file_path, "r", encoding="utf-8") as cf:
+                config = json.load(cf)
+            log_message(f"[CONFIG] Active Quality Preset: {config.get('name', 'Custom')}")
+        except Exception as e:
+            log_message(f"[CONFIG] Warning loading config: {e}")
 
     # =====================================================
     # TOTAL PIPELINE TIMER
@@ -97,6 +114,7 @@ try:
     colmap_time = 0.0
     reconstruction_time = 0.0
 
+    save_status("RUNNING", step="Starting 3D reconstruction pipeline...", progress=0.06)
     log_message(
         "[START] Starting Reconstruction Pipeline..."
     )
@@ -123,13 +141,15 @@ try:
     # PREPROCESS IMAGES
     # =====================================================
 
+    save_status("RUNNING", step="Preprocessing and enhancing input images...", progress=0.10)
     log_message(
         "[PREPROCESS] Starting preprocessing..."
     )
 
     preprocess_result = preprocess_images(
         image_paths,
-        progress_callback=log_message
+        progress_callback=log_message,
+        config=config
     )
 
     # preprocess_images returns a dict — extract the paths list
@@ -181,6 +201,7 @@ try:
     # RUN RECONSTRUCTION BACKEND
     # =====================================================
 
+    save_status("RUNNING", step="COLMAP feature extraction & multi-view matching...", progress=0.25)
     log_message(
         "[BACKEND] Starting reconstruction backend..."
     )
@@ -197,7 +218,8 @@ try:
     )
 
     dense_ply_path = backend_manager.run(
-        processed_image_paths
+        processed_image_paths,
+        config=config
     )
     if not dense_ply_path:
 
@@ -238,6 +260,8 @@ try:
     # RUN RECONSTRUCTION
     # =====================================================
 
+    save_status("RUNNING", step="ML surface reconstruction & geometry hole completion...", progress=0.82)
+
     (
         points,
         colors,
@@ -253,7 +277,9 @@ try:
 
         dense_ply_path,
 
-        progress_callback=log_message
+        progress_callback=log_message,
+
+        config=config
     )
     reconstruction_time = (
         time.perf_counter()
@@ -299,6 +325,25 @@ try:
     # SAVE RESULTS
     # =====================================================
 
+    # Load sparse points if available
+    sparse_points_arr = np.zeros((0, 3))
+    try:
+        from colmap_loader import load_colmap_model
+        _, _, _, s_pts, _ = load_colmap_model("colmap_data")
+        sparse_points_arr = np.asarray(s_pts, dtype=np.float64)
+    except Exception:
+        pass
+
+    # Load raw dense points if available
+    raw_points_arr = np.zeros((0, 3))
+    raw_pcd_file = os.path.join("outputs", "dense", "raw_pointcloud.ply")
+    if os.path.exists(raw_pcd_file):
+        try:
+            raw_pcd = o3d.io.read_point_cloud(raw_pcd_file)
+            raw_points_arr = np.asarray(raw_pcd.points, dtype=np.float64)
+        except Exception:
+            pass
+
     np.savez (
 
         RESULT_FILE,
@@ -308,6 +353,10 @@ try:
         colors=colors,
 
         cameras=camera_positions,
+
+        sparse_points=sparse_points_arr,
+
+        raw_points=raw_points_arr,
 
         processing_time=processing_time,
 
@@ -319,7 +368,15 @@ try:
 
         analytics=analytics,
 
-        ply_path=str(ply_path)
+        ply_path=str(ply_path),
+
+        mesh_path=str(analytics.get("mesh_path", os.path.join("output", "mesh.ply"))),
+
+        raw_ply_path=str(raw_pcd_file),
+
+        filtered_ply_path=str(os.path.join("outputs", "dense", "filtered_pointcloud.ply")),
+
+        sparse_ply_path=str(os.path.join("outputs", "sparse", "sparse_model.ply"))
     )
 
 
@@ -381,7 +438,7 @@ try:
         f"{analytics['health_score']}%"
     )
 
-    save_status("COMPLETED")
+    save_status("COMPLETED", step="3D Reconstruction & ML Surface Meshing Completed!", progress=1.0)
 
 except Exception as e:
 
@@ -409,7 +466,7 @@ except Exception as e:
             f"[ERROR] {str(e)}"
         )
 
-    save_status("FAILED")
+    save_status("FAILED", step=f"Error encountered: {str(e)}", progress=0.0)
 
 finally:
 

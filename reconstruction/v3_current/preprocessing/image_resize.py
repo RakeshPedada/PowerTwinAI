@@ -32,8 +32,8 @@ class ImageResizer:
 
     def __init__(
         self,
-        max_width: int = 2000,   # was 1600 — more pixels → more features
-        max_height: int = 1500,  # was 1200
+        max_width: int = 4096,
+        max_height: int = 4096,
         progress_callback=print
     ):
         self.max_width = max_width
@@ -41,7 +41,7 @@ class ImageResizer:
         self.progress_callback = progress_callback
 
         self.progress_callback(
-            f"[RESIZE] Max Size: {self.max_width}x{self.max_height}"
+            f"[RESIZE] Max Size Constraint: {self.max_width}x{self.max_height}"
         )
 
     def resize_image(self, image):

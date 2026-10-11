@@ -33,6 +33,8 @@ def preprocess_images(
     max_workers: int = 4,
     save_quality_report: bool = True,
     cleanup_temp: bool = False,
+    remove_background: bool = False,
+    config: dict | None = None,
 ):
     """
     Run the full preprocessing pipeline on a list of image paths.
@@ -168,21 +170,36 @@ def preprocess_images(
 
     progress_callback("[PREPROCESS] Resizing Images...")
 
-    resizer = ImageResizer(progress_callback=progress_callback)
+    max_res = int(config.get("image_max_size", 4096)) if config else 4096
+    resizer = ImageResizer(
+        max_width=max_res,
+        max_height=max_res,
+        progress_callback=progress_callback
+    )
     _, failed_resize = resizer.process_folder(
         original_dir,
         resized_dir
     )
 
-    # ── Step 3: Background Removal ────────────────────────────────────────────
-
-    progress_callback("[PREPROCESS] Removing Backgrounds...")
-
-    remover = BackgroundRemover(progress_callback=progress_callback)
-    processed_paths, failed_bg = remover.process_folder(
-        resized_dir,
-        processed_dir
-    )
+    # ── Step 3: Background Removal (Optional) ─────────────────────────────────
+    if remove_background:
+        progress_callback("[PREPROCESS] Removing Backgrounds...")
+        remover = BackgroundRemover(progress_callback=progress_callback)
+        processed_paths, failed_bg = remover.process_folder(
+            resized_dir,
+            processed_dir
+        )
+    else:
+        progress_callback(
+            "[PREPROCESS] Preserving scene background & markers for optimal Structure-from-Motion tracking..."
+        )
+        processed_paths = []
+        for f in sorted(resized_dir.glob("*.*")):
+            if f.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]:
+                dst = processed_dir / f.name
+                shutil.copy2(f, dst)
+                processed_paths.append(str(dst))
+        failed_bg = []
 
     # ── Step 4: Save Quality Report ───────────────────────────────────────────
 

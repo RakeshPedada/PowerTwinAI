@@ -70,9 +70,9 @@ def main():
         "--database_path", str(db_bench),
         "--match_list_path", str(pairs_txt),
         "--match_type", "pairs",
-        "--SiftMatching.use_gpu", "0",
-        "--SiftMatching.num_threads", "4",
-        "--SiftMatching.max_num_matches", "32768"
+        "--FeatureMatching.use_gpu", "0",
+        "--FeatureMatching.num_threads", "4",
+        "--FeatureMatching.max_num_matches", "32768"
     ]
     print("\n[3] Launching COLMAP matches_importer on 386 candidate pairs...")
     t_match_start = time.perf_counter()

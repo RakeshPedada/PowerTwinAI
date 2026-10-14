@@ -117,7 +117,14 @@ def build_colmap_env(colmap_bin):
         bin_dir = colmap_root / "bin"
 
     lib_dir = colmap_root / "lib"
-    plugin_root = lib_dir / "plugins"
+    if (colmap_root / "plugins").exists():
+        plugin_root = colmap_root / "plugins"
+    elif (lib_dir / "plugins").exists():
+        plugin_root = lib_dir / "plugins"
+    elif (bin_dir / "plugins").exists():
+        plugin_root = bin_dir / "plugins"
+    else:
+        plugin_root = colmap_root / "plugins"
     platforms_dir = plugin_root / "platforms"
 
     env = os.environ.copy()
@@ -131,8 +138,8 @@ def build_colmap_env(colmap_bin):
 
     print(
         f"[COLMAP] bin dir        : {bin_dir}\n"
-        f"[COLMAP] lib dir        : {lib_dir} (exists={lib_dir.exists()})\n"
         f"[COLMAP] Qt plugin root : {plugin_root} (exists={plugin_root.exists()})\n"
+        f"[COLMAP] Platforms dir  : {platforms_dir} (exists={platforms_dir.exists()})\n"
         f"[COLMAP] QPA platform   : offscreen"
     )
     return env, cwd
@@ -242,9 +249,9 @@ def run_colmap(image_paths, config=None):
         "--database_path",                  database_path,
         "--image_path",                     str(colmap_images),
         "--ImageReader.single_camera",      "1",
-        "--SiftExtraction.use_gpu",          use_gpu_sift,
-        "--SiftExtraction.num_threads",      "2",
-        "--SiftExtraction.max_image_size",   sift_max_img_size,
+        "--FeatureExtraction.use_gpu",      use_gpu_sift,
+        "--FeatureExtraction.num_threads",  "2",
+        "--FeatureExtraction.max_image_size", sift_max_img_size,
         "--SiftExtraction.max_num_features", sift_max_features,
         "--SiftExtraction.peak_threshold",   sift_peak_threshold,
         "--SiftExtraction.edge_threshold",   sift_edge_threshold,
@@ -263,9 +270,9 @@ def run_colmap(image_paths, config=None):
             "--database_path",                  database_path,
             "--image_path",                     str(colmap_images),
             "--ImageReader.single_camera",      "1",
-            "--SiftExtraction.use_gpu",          "0",
-            "--SiftExtraction.num_threads",      "1",
-            "--SiftExtraction.max_image_size",   "2000",
+            "--FeatureExtraction.use_gpu",      "0",
+            "--FeatureExtraction.num_threads",  "1",
+            "--FeatureExtraction.max_image_size", "2000",
             "--SiftExtraction.max_num_features", "8192",
             "--SiftExtraction.peak_threshold",   "0.006",
             "--SiftExtraction.edge_threshold",   "10",
@@ -340,12 +347,12 @@ def run_colmap(image_paths, config=None):
                 match_cmd = [
                     colmap_bin,
                     "matches_importer",
-                    "--database_path",               database_path,
-                    "--match_list_path",             str(pairs_file_path),
-                    "--match_type",                  "pairs",
-                    "--SiftMatching.use_gpu",        use_gpu_sift,
-                    "--SiftMatching.num_threads",    "4",
-                    "--SiftMatching.max_num_matches", "32768",
+                    "--database_path",                    database_path,
+                    "--match_list_path",                  str(pairs_file_path),
+                    "--match_type",                       "pairs",
+                    "--FeatureMatching.use_gpu",          use_gpu_sift,
+                    "--FeatureMatching.num_threads",      "4",
+                    "--FeatureMatching.max_num_matches",  "32768",
                 ]
         except Exception as e:
             print(f"[COLMAP-ML] ML pair ranking error: {e}. Falling back to sequential matching.")
@@ -361,9 +368,9 @@ def run_colmap(image_paths, config=None):
                 "--SequentialMatching.overlap",         "15",
                 "--SequentialMatching.quadratic_overlap", "1",
                 "--SequentialMatching.loop_detection",  "0",
-                "--SiftMatching.use_gpu",               use_gpu_sift,
-                "--SiftMatching.num_threads",           "4",
-                "--SiftMatching.max_num_matches",       "32768",
+                "--FeatureMatching.use_gpu",            use_gpu_sift,
+                "--FeatureMatching.num_threads",        "4",
+                "--FeatureMatching.max_num_matches",    "32768",
             ]
             ml_telemetry = {
                 "matcher_mode": "sequential",
@@ -375,10 +382,10 @@ def run_colmap(image_paths, config=None):
             match_cmd = [
                 colmap_bin,
                 "exhaustive_matcher",
-                "--database_path",               database_path,
-                "--SiftMatching.use_gpu",        use_gpu_sift,
-                "--SiftMatching.num_threads",    "4",
-                "--SiftMatching.max_num_matches", "32768",
+                "--database_path",                    database_path,
+                "--FeatureMatching.use_gpu",          use_gpu_sift,
+                "--FeatureMatching.num_threads",      "4",
+                "--FeatureMatching.max_num_matches",  "32768",
             ]
             total_n = len(list(colmap_images.glob("*.jpg")))
             ml_telemetry = {

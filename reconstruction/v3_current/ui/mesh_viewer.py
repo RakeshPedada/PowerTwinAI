@@ -75,7 +75,7 @@ def render_mesh_viewer(points=None, colors=None, default_mesh_path=None, key=Non
                 help="Lower values apply stricter outlier filtering before meshing. 1.5 is ideal for multi-view SfM."
             )
 
-        gen_clicked = st.button("🛠️ Generate Surface Mesh", type="primary", use_container_width=True, key=f"{prefix}gen_btn")
+        gen_clicked = st.button("🛠️ Generate Surface Mesh", type="primary", width="stretch", key=f"{prefix}gen_btn")
 
         if gen_clicked:
             # Determine point source
@@ -255,7 +255,7 @@ def render_mesh_viewer(points=None, colors=None, default_mesh_path=None, key=Non
         )
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # ── Download Mesh Section ────────────────────────────────────────────────
     st.markdown("<div class='section-title'><span>⬇️</span> Download Surface Mesh Model</div>", unsafe_allow_html=True)
@@ -269,7 +269,7 @@ def render_mesh_viewer(points=None, colors=None, default_mesh_path=None, key=Non
                     data=f.read(),
                     file_name="surface_mesh.ply",
                     mime="application/octet-stream",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{prefix}dl_mesh_ply"
                 )
 
@@ -282,6 +282,6 @@ def render_mesh_viewer(points=None, colors=None, default_mesh_path=None, key=Non
                     data=f.read(),
                     file_name="surface_mesh.obj",
                     mime="text/plain",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"{prefix}dl_mesh_obj"
                 )

@@ -45,7 +45,7 @@ def render_reconstruction_controls(
                 unsafe_allow_html=True,
             )
         with col_cancel:
-            if st.button("🛑 Cancel Run", type="secondary", use_container_width=True, help="Stop background reconstruction"):
+            if st.button("🛑 Cancel Run", type="secondary", width="stretch", help="Stop background reconstruction"):
                 cancel_reconstruction(temp_dir)
                 st.session_state.reconstruction_running = False
                 st.warning("Reconstruction cancelled.")
@@ -226,7 +226,7 @@ def render_reconstruction_controls(
                     )
 
     # ── 4. Launch Button & Config Persistence ────────────────────────────────
-    start_clicked = st.button("🚀 Start 3D Reconstruction Pipeline", type="primary", use_container_width=True)
+    start_clicked = st.button("🚀 Start 3D Reconstruction Pipeline", type="primary", width="stretch")
 
     if start_clicked:
         # Build combined active configuration

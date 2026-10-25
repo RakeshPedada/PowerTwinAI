@@ -139,7 +139,56 @@ For more information, refer to:
 
 - NumPy
 - SciPy
+
+### Deep Learning & Feed-Forward Reconstruction
+- PyTorch & Torchvision
+- Meta VGGT-1B (Visual Geometry Grounded Transformer)
+- Hugging Face Hub (`facebook/VGGT-1B`)
+- Einops & SafeTensors
+
 ---
+
+## 3D Reconstruction Pipelines: COLMAP & VGGT
+
+PowerTwinAI incorporates two independent, parallel 3D reconstruction paradigms:
+
+```text
+                 INPUT IMAGES
+                      |
+          +-----------+-----------+
+          |                       |
+          v                       v
+    COLMAP PIPELINE          VGGT PIPELINE
+          |                       |
+   Existing ML model          VGGT-1B
+          |                       |
+     SIFT/COLMAP           Depth/Point Maps
+          |                       |
+          v                       v
+     COLMAP MODEL            VGGT POINT CLOUD
+          |                       |
+          +-----------+-----------+
+                      |
+                  COMPARISON
+                      |
+              Runtime / Points /
+              Coverage / Quality
+```
+
+1. **Classic COLMAP Pipeline**:
+   - Feature matching with ML-based pair ranking to reduce all-to-all matching overhead.
+   - SIFT extraction, geometric verification, incremental camera pose solving, and bundle adjustment.
+   - Dense PatchMatch stereo fusion, statistical outlier filtering, and Poisson meshing.
+2. **VGGT Pipeline**:
+   - Feed-forward transformer inference via Meta Research's **VGGT-1B**.
+   - Direct prediction of 6-DOF camera extrinsics, intrinsics, depth maps, and point clouds in a single pass.
+   - Automatic CUDA GPU detection with seamless CPU fallback and mixed precision.
+   - Outputs stored independently in `outputs/vggt/` without overwriting COLMAP.
+3. **Comparative Analysis**:
+   - Side-by-side benchmark reporting runtime, point count, spatial coverage volume, and density.
+   - Interactive 3D overlay comparing COLMAP geometry (Cyan) against VGGT geometry (Magenta).
+   - Grounded empirical evaluation without unverified accuracy assertions.
+
 
 ## Roadmap
 

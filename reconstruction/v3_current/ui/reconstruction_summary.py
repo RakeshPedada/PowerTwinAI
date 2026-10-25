@@ -306,6 +306,6 @@ def render_reconstruction_summary(
                 data=json.dumps(diag, indent=2),
                 file_name="reconstruction_diagnostics.json",
                 mime="application/json",
-                use_container_width=True,
+                width="stretch",
                 key="download_reconstruction_diag_btn"
             )

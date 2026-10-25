@@ -73,7 +73,7 @@ def render_results_dashboard(result_file):
                     data=ply_file.read(),
                     file_name="filtered_pointcloud.ply",
                     mime="application/octet-stream",
-                    use_container_width=True,
+                    width="stretch",
                     key="dl_cleaned_pcd_btn"
                 )
         else:
@@ -87,7 +87,7 @@ def render_results_dashboard(result_file):
                     data=mesh_file.read(),
                     file_name="final_mesh.ply",
                     mime="application/octet-stream",
-                    use_container_width=True,
+                    width="stretch",
                     key="dl_surface_mesh_btn"
                 )
         else:
@@ -101,7 +101,7 @@ def render_results_dashboard(result_file):
                     data=raw_file.read(),
                     file_name="raw_pointcloud.ply",
                     mime="application/octet-stream",
-                    use_container_width=True,
+                    width="stretch",
                     key="dl_raw_dense_btn"
                 )
         else:
@@ -113,7 +113,7 @@ def render_results_dashboard(result_file):
                         data=obj_file.read(),
                         file_name="surface_mesh.obj",
                         mime="application/octet-stream",
-                        use_container_width=True,
+                        width="stretch",
                         key="dl_mesh_obj_btn"
                     )
 

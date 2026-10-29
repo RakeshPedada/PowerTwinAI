@@ -1,7 +1,10 @@
 import os
 import json
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    st_autorefresh = None
 
 
 def render_progress_panel(log_file, status_file):
@@ -14,10 +17,35 @@ def render_progress_panel(log_file, status_file):
         True if reconstruction has completed, otherwise False.
     """
 
-    if not st.session_state.reconstruction_running:
+    # Check active status dynamically
+    is_active = st.session_state.get("reconstruction_running", False)
+    if not is_active and os.path.exists(status_file):
+        try:
+            with open(status_file, "r") as f:
+                if json.load(f).get("status") == "RUNNING":
+                    is_active = True
+                    st.session_state.reconstruction_running = True
+        except Exception:
+            pass
+
+    if not is_active:
         return False
 
-    st_autorefresh(interval=7000, key="refresh")
+    if st_autorefresh is not None:
+        st_autorefresh(interval=3500, key="refresh_recon_progress")
+
+    status_data = {}
+    if os.path.exists(status_file):
+        try:
+            with open(status_file, "r") as f:
+                status_data = json.load(f)
+        except Exception:
+            pass
+
+    current_step = status_data.get("step", "COLMAP SIFT extraction, multi-view feature matching & ML surface meshing in progress...")
+    current_progress = float(status_data.get("progress", 0.15))
+
+    st.progress(min(1.0, max(0.0, current_progress)), text=f"⚡ {current_step}")
 
     logs = []
 
@@ -39,8 +67,8 @@ def render_progress_panel(log_file, status_file):
 
     st.text_area(
         "Reconstruction Progress",
-        "".join(logs[-25:]),
-        height=250,
+        "".join(logs[-30:]),
+        height=260,
         disabled=True
     )
 
@@ -49,11 +77,20 @@ def render_progress_panel(log_file, status_file):
         with open(status_file, "r") as f:
             status_data = json.load(f)
 
-        if status_data.get("status") == "COMPLETED":
+        status = status_data.get("status")
+        if status == "COMPLETED":
 
             st.session_state.reconstruction_running = False
             st.session_state.reconstruction_done = True
 
             return True
+
+        elif status == "FAILED":
+
+            st.session_state.reconstruction_running = False
+            st.session_state.reconstruction_done = False
+
+            st.error("❌ Reconstruction pipeline encountered an error. Please inspect the logs above.")
+            return False
 
     return False

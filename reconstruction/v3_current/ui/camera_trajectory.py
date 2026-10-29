@@ -57,10 +57,10 @@ def render_camera_trajectory(cameras):
 
         height=650,
 
-        paper_bgcolor="#020617",
+        paper_bgcolor="#0a0614",
 
         scene=dict(
-            bgcolor="#010409",
+            bgcolor="#05030a",
             aspectmode="data"
         ),
 
@@ -80,5 +80,5 @@ def render_camera_trajectory(cameras):
 
     st.plotly_chart(
         fig,
-        use_container_width=True
+        width='stretch'
     )

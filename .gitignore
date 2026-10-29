@@ -1,1 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
+# Checkpoints and models (> 100MB)
+checkpoints/
+*.pth
+*.safetensors
+*.bin
+*.pkl
+
+# Ephemeral runtime & session workspaces
+temp_session/
+temp_session_*/
+reconstruction/v3_current/temp_session*/
+reconstruction/v3_current/colmap_workspace/
+reconstruction/v3_current/colmap_data/
+colmap_workspace/
+colmap_data/
+outputs/
+output/
+reconstruction/v3_current/outputs/
+reconstruction/v3_current/output/
+reconstruction/v3_current/full_error.txt
+*.db
+*.npz
+
+# Submodule/cloned repo
+research/mast3r_repo/
+scratch/
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.DS_Store
+Thumbs.db

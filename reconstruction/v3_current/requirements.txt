@@ -7,3 +7,13 @@ streamlit
 rembg
 matplotlib
 scikit-image
+plotly
+pandas
+streamlit-autorefresh
+scikit-learn
+onnxruntime
+torch>=2.0.0
+torchvision>=0.15.0
+huggingface_hub
+einops
+safetensors

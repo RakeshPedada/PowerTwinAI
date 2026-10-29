@@ -100,3 +100,12 @@ class BackendManager:
             f"Unsupported reconstruction backend: "
             f"{self.backend}"
         )
+
+def get_available_backends() -> list:
+    return ["colmap", "vggt", "mast3r"]
+
+
+def run_backend_pipeline(backend: str, image_paths, config=None):
+    mgr = BackendManager(backend=backend)
+    return mgr.run(image_paths=image_paths, config=config)
+

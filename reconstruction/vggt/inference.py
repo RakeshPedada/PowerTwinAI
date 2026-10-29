@@ -252,6 +252,8 @@ def run_vggt_inference(
         del world_points_tensor
     release_vggt_memory(model)
 
+    inference_time = time.perf_counter() - start_time
+
     # Save to disk cache if enabled
     if cache_dir and use_cache:
         try:
@@ -273,7 +275,6 @@ def run_vggt_inference(
         except Exception as e:
             logger.warning(f"Could not save cache: {e}")
 
-    inference_time = time.perf_counter() - start_time
     if progress_callback:
         progress_callback(f"[VGGT] Feed-forward pass completed in {inference_time:.2f}s on {device.upper()}.")
 

@@ -61,6 +61,10 @@ class BackendManager:
                 voxel_size=config.get("voxel_size", None),
                 export_colmap=config.get("export_colmap", True),
                 use_ba=config.get("use_ba", False),
+                generate_mesh_flag=config.get("generate_mesh_flag", True),
+                mesh_method=config.get("mesh_method", "Poisson"),
+                poisson_depth=config.get("poisson_depth", 8),
+                density_quantile=config.get("density_quantile", 0.01),
                 progress_callback=config.get("progress_callback", None)
             )
 

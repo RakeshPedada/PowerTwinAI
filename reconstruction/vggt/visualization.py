@@ -307,3 +307,103 @@ def save_html_debug_visualizations(
         pc_fig.write_html(os.path.join(debug_dir, "point_cloud_interactive.html"), include_plotlyjs="cdn")
     except Exception:
         pass
+
+def create_vggt_mesh_figure(
+    mesh_path: str,
+    title: str = "📐 VGGT 3D Surface Mesh",
+    max_faces: int = 60000,
+    color_mode: str = "rgb",
+    default_color: str = "#a855f7"
+) -> go.Figure:
+    """
+    Generate an interactive Plotly 3D Mesh figure (go.Mesh3d) from a VGGT .ply, .obj, or .stl mesh file.
+    Loads vertices and triangular faces and renders a clean high-fidelity surface representation.
+    """
+    fig = go.Figure()
+    if not mesh_path or not os.path.exists(mesh_path):
+        fig.update_layout(
+            title=dict(text="VGGT Surface Mesh file not found", font=dict(color="#ef4444", size=14)),
+            paper_bgcolor="#05030a"
+        )
+        return fig
+
+    try:
+        import open3d as o3d
+        mesh = o3d.io.read_triangle_mesh(mesh_path)
+        v_arr = np.asarray(mesh.vertices)
+        f_arr = np.asarray(mesh.triangles)
+
+        if len(v_arr) == 0 or len(f_arr) == 0:
+            fig.update_layout(
+                title=dict(text="Mesh contains 0 vertices or 0 faces", font=dict(color="#ef4444", size=14)),
+                paper_bgcolor="#05030a"
+            )
+            return fig
+
+        # Quadric decimation for fluid in-browser interactive rotation if face count exceeds budget
+        if len(f_arr) > max_faces:
+            try:
+                mesh_simp = mesh.simplify_quadric_decimation(target_number_of_triangles=max_faces)
+                if len(mesh_simp.triangles) > 0:
+                    mesh = mesh_simp
+                    v_arr = np.asarray(mesh.vertices)
+                    f_arr = np.asarray(mesh.triangles)
+                else:
+                    step = len(f_arr) // max_faces
+                    f_arr = f_arr[::step]
+            except Exception:
+                step = len(f_arr) // max_faces
+                f_arr = f_arr[::step]
+
+        mesh3d_kwargs = dict(
+            x=v_arr[:, 0],
+            y=v_arr[:, 1],
+            z=v_arr[:, 2],
+            i=f_arr[:, 0],
+            j=f_arr[:, 1],
+            k=f_arr[:, 2],
+            name="VGGT Surface Mesh",
+            hoverinfo="skip",
+            flatshading=False,
+            lighting=dict(
+                ambient=0.45,
+                diffuse=0.6,
+                roughness=0.4,
+                specular=0.25,
+                fresnel=0.1
+            ),
+            lightposition=dict(x=100, y=200, z=150)
+        )
+
+        if mesh.has_vertex_colors() and color_mode == "rgb":
+            cols = np.asarray(mesh.vertex_colors)
+            if cols.max() <= 1.0:
+                cols = (cols * 255.0).astype(np.uint8)
+            mesh3d_kwargs["vertexcolor"] = [f"rgb({int(c[0])},{int(c[1])},{int(c[2])})" for c in cols]
+        else:
+            mesh3d_kwargs["color"] = default_color
+            mesh3d_kwargs["opacity"] = 0.95
+
+        fig.add_trace(go.Mesh3d(**mesh3d_kwargs))
+
+        fig.update_layout(
+            title=dict(text=title, font=dict(color="#ffffff", size=15)),
+            paper_bgcolor="#05030a",
+            plot_bgcolor="#05030a",
+            scene=dict(
+                xaxis=dict(title="X (m)", color="#64748b", gridcolor="#1e1b4b", showbackground=False),
+                yaxis=dict(title="Y (m)", color="#64748b", gridcolor="#1e1b4b", showbackground=False),
+                zaxis=dict(title="Z (m)", color="#64748b", gridcolor="#1e1b4b", showbackground=False),
+                aspectmode="data"
+            ),
+            margin=dict(l=0, r=0, b=0, t=40)
+        )
+        return fig
+
+    except Exception as e:
+        fig.update_layout(
+            title=dict(text=f"Error rendering VGGT mesh: {str(e)}", font=dict(color="#ef4444", size=13)),
+            paper_bgcolor="#05030a"
+        )
+        return fig
+

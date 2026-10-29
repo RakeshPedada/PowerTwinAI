@@ -17,6 +17,8 @@ from .inference import (
 )
 from .reconstruction import (
     run_vggt_reconstruction,
+    generate_vggt_surface_mesh,
+    validate_vggt_mesh_ply,
     export_vggt_to_colmap_standard,
     rescale_camera_parameters_to_original,
     build_geometric_multiview_tracks,
@@ -24,6 +26,7 @@ from .reconstruction import (
 )
 from .visualization import (
     create_vggt_point_cloud_figure,
+    create_vggt_mesh_figure,
     create_vggt_camera_trajectory_figure,
     create_comparison_point_cloud_figure,
     save_html_debug_visualizations,
@@ -46,11 +49,14 @@ __all__ = [
     "select_image_subset",
     "order_images_by_overlap",
     "run_vggt_reconstruction",
+    "generate_vggt_surface_mesh",
+    "validate_vggt_mesh_ply",
     "export_vggt_to_colmap_standard",
     "rescale_camera_parameters_to_original",
     "build_geometric_multiview_tracks",
     "run_bundle_adjustment_refinement",
     "create_vggt_point_cloud_figure",
+    "create_vggt_mesh_figure",
     "create_vggt_camera_trajectory_figure",
     "create_comparison_point_cloud_figure",
     "save_html_debug_visualizations",

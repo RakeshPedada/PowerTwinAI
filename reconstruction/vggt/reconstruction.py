@@ -371,6 +371,257 @@ def run_bundle_adjustment_refinement(
     return ba_report
 
 
+
+def validate_vggt_mesh_ply(mesh_ply_path: str) -> Dict[str, Any]:
+    """
+    Strict validation of VGGT surface mesh PLY according to specification:
+    - file exists on disk
+    - vertex count > 0
+    - face count > 0
+    - vertices contain valid XYZ coordinates (no NaN, no inf)
+    - mesh is actually 3D (non-zero bounding box extent in X, Y, and Z)
+    - PLY header contains an 'element face' section with count > 0
+    - faces reference valid vertex indices
+    """
+    if not os.path.exists(mesh_ply_path):
+        raise FileNotFoundError(f"VGGT surface mesh PLY file not found: {mesh_ply_path}")
+
+    # 1. Header examination
+    has_element_face = False
+    face_count_header = 0
+    vertex_count_header = 0
+    with open(mesh_ply_path, "rb") as f:
+        first_line = f.readline().strip()
+        if first_line != b"ply":
+            raise ValueError(f"File {mesh_ply_path} is not a valid PLY file (missing 'ply' header magic).")
+
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            line_str = line.strip().decode("ascii", errors="ignore")
+            if line_str.startswith("element vertex"):
+                parts = line_str.split()
+                if len(parts) >= 3:
+                    vertex_count_header = int(parts[2])
+            elif line_str.startswith("element face"):
+                parts = line_str.split()
+                if len(parts) >= 3:
+                    face_count_header = int(parts[2])
+                    has_element_face = (face_count_header > 0)
+            elif line_str == "end_header":
+                break
+
+    if not has_element_face or face_count_header <= 0:
+        raise ValueError(
+            f"VGGT surface mesh validation failed: '{mesh_ply_path}' does not define an 'element face' section "
+            f"with positive count (found face count: {face_count_header})."
+        )
+
+    # 2. Geometry examination with Open3D
+    mesh = o3d.io.read_triangle_mesh(mesh_ply_path)
+    vertices = np.asarray(mesh.vertices)
+    triangles = np.asarray(mesh.triangles)
+
+    if len(vertices) == 0:
+        raise ValueError("VGGT surface mesh contains 0 vertices.")
+    if len(triangles) == 0:
+        raise ValueError("VGGT surface mesh contains 0 faces.")
+
+    # Check for NaN / Inf
+    if not np.isfinite(vertices).all():
+        raise ValueError("VGGT surface mesh vertices contain NaN or Inf values.")
+
+    # Check that mesh is actually 3D
+    min_b = np.min(vertices, axis=0)
+    max_b = np.max(vertices, axis=0)
+    extent = max_b - min_b
+    if (extent < 1e-5).any():
+        raise ValueError(f"VGGT surface mesh is degenerate or planar (extent: {extent}).")
+
+    # Check that faces reference valid vertex indices
+    if (triangles < 0).any() or (triangles >= len(vertices)).any():
+        raise ValueError("VGGT surface mesh faces contain out-of-bounds vertex references.")
+
+    return {
+        "valid": True,
+        "path": mesh_ply_path,
+        "vertex_count": len(vertices),
+        "face_count": len(triangles),
+        "has_faces": True,
+        "bounding_box": {
+            "min": min_b.tolist(),
+            "max": max_b.tolist(),
+            "extent": extent.tolist()
+        }
+    }
+
+
+def generate_vggt_surface_mesh(
+    point_cloud: o3d.geometry.PointCloud,
+    output_dir: str,
+    method: str = "Poisson",
+    poisson_depth: int = 8,
+    density_quantile: float = 0.01,
+    camera_centers: Optional[np.ndarray] = None,
+    progress_callback=None
+) -> Dict[str, Any]:
+    """
+    Generate a genuine 3D triangular surface mesh from VGGT 3D points.
+    Preserves point cloud colors, estimates and validates normals, applies
+    Poisson or Ball Pivoting surface reconstruction, trims low-density boundary artifacts,
+    and exports vggt_surface_mesh.ply, vggt_surface_mesh.obj, vggt_surface_mesh.stl.
+    """
+    t0 = time.perf_counter()
+    os.makedirs(output_dir, exist_ok=True)
+    mesh_sub_dir = os.path.join(output_dir, "mesh")
+    os.makedirs(mesh_sub_dir, exist_ok=True)
+
+    pcd = copy.deepcopy(point_cloud)
+    initial_points = len(pcd.points)
+    if initial_points < 30:
+        raise RuntimeError(f"Insufficient points for VGGT surface mesh reconstruction ({initial_points} < 30).")
+
+    # 1. Estimate & Validate Normals
+    if progress_callback:
+        progress_callback("[VGGT-MESH] Estimating and validating surface normals from 3D points...")
+
+    if not pcd.has_normals() or len(pcd.normals) == 0:
+        pcd.estimate_normals(
+            search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.15, max_nn=30)
+        )
+
+    # Orient normals consistently
+    pcd.orient_normals_consistent_tangent_plane(15)
+
+    # If camera centers are provided, orient normals facing external cameras
+    if camera_centers is not None and len(camera_centers) > 0:
+        c_mean = np.mean(camera_centers, axis=0)
+        pts_arr = np.asarray(pcd.points)
+        norms_arr = np.asarray(pcd.normals)
+        cam_vecs = c_mean - pts_arr
+        dots = np.sum(norms_arr * cam_vecs, axis=1)
+        if np.mean(dots) < 0:
+            pcd.normals = o3d.utility.Vector3dVector(-norms_arr)
+
+    # Sanitize normals (no NaN, unit length)
+    norms_arr = np.asarray(pcd.normals)
+    if not np.isfinite(norms_arr).all():
+        norms_arr = np.nan_to_num(norms_arr, nan=0.0, posinf=1.0, neginf=-1.0)
+    lengths = np.linalg.norm(norms_arr, axis=1, keepdims=True)
+    lengths[lengths == 0] = 1.0
+    pcd.normals = o3d.utility.Vector3dVector(norms_arr / lengths)
+
+    # 2. Surface Reconstruction
+    if progress_callback:
+        progress_callback(f"[VGGT-MESH] Running {method} surface reconstruction (depth={poisson_depth})...")
+
+    if method.lower() == "poisson":
+        mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+            pcd,
+            depth=poisson_depth,
+            width=0,
+            scale=1.1,
+            linear_fit=False
+        )
+
+        # Density trimming to remove spurious boundary envelopes
+        densities = np.asarray(densities)
+        if len(densities) > 0 and density_quantile > 0.0:
+            density_threshold = float(np.quantile(densities, density_quantile))
+            vertices_to_remove = densities < density_threshold
+            mesh.remove_vertices_by_mask(vertices_to_remove)
+    else:
+        # Ball Pivoting Algorithm
+        distances = pcd.compute_nearest_neighbor_distance()
+        avg_dist = float(np.mean(distances)) if len(distances) > 0 else 0.05
+        radii = [avg_dist * 1.5, avg_dist * 3.0, avg_dist * 6.0]
+        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+            pcd, o3d.utility.DoubleVector(radii)
+        )
+
+    # 3. Topology cleaning
+    mesh.remove_degenerate_triangles()
+    mesh.remove_duplicated_triangles()
+    mesh.remove_duplicated_vertices()
+    mesh.remove_non_manifold_edges()
+
+    # Taubin smoothing
+    if len(mesh.triangles) > 100:
+        mesh = mesh.filter_smooth_taubin(number_of_iterations=3)
+
+    # 4. Color transfer
+    if pcd.has_colors() and len(mesh.vertices) > 0:
+        if progress_callback:
+            progress_callback("[VGGT-MESH] Transferring photographic RGB colors to mesh vertices...")
+        kdtree = o3d.geometry.KDTreeFlann(pcd)
+        pcd_colors = np.asarray(pcd.colors)
+        mesh_verts = np.asarray(mesh.vertices)
+        mesh_colors = np.zeros_like(mesh_verts)
+
+        for i, v in enumerate(mesh_verts):
+            _, idx, _ = kdtree.search_knn_vector_3d(v, 1)
+            mesh_colors[i] = pcd_colors[idx[0]]
+
+        mesh.vertex_colors = o3d.utility.Vector3dVector(np.clip(mesh_colors, 0.0, 1.0))
+
+    # 5. Compute surface normals
+    mesh.compute_vertex_normals()
+    mesh.compute_triangle_normals()
+
+    # 6. Export files
+    mesh_ply = os.path.join(output_dir, "vggt_surface_mesh.ply")
+    mesh_obj = os.path.join(output_dir, "vggt_surface_mesh.obj")
+    mesh_stl = os.path.join(output_dir, "vggt_surface_mesh.stl")
+
+    # Also write to mesh/ subfolder for structure consistency
+    mesh_sub_ply = os.path.join(mesh_sub_dir, "vggt_surface_mesh.ply")
+    mesh_sub_obj = os.path.join(mesh_sub_dir, "vggt_surface_mesh.obj")
+
+    o3d.io.write_triangle_mesh(
+        mesh_ply,
+        mesh,
+        write_ascii=True,
+        write_vertex_normals=True,
+        write_vertex_colors=True
+    )
+    o3d.io.write_triangle_mesh(mesh_obj, mesh)
+    o3d.io.write_triangle_mesh(mesh_stl, mesh)
+    o3d.io.write_triangle_mesh(mesh_sub_ply, mesh, write_ascii=True, write_vertex_normals=True, write_vertex_colors=True)
+    o3d.io.write_triangle_mesh(mesh_sub_obj, mesh)
+
+    # Save point cloud as vggt_point_cloud.ply
+    pcd_ply = os.path.join(output_dir, "vggt_point_cloud.ply")
+    o3d.io.write_point_cloud(pcd_ply, pcd, write_ascii=False)
+
+    # 7. Validation
+    validation = validate_vggt_mesh_ply(mesh_ply)
+    dt = time.perf_counter() - t0
+
+    if progress_callback:
+        progress_callback(
+            f"[VGGT-MESH] Successfully generated genuine 3D surface mesh in {dt:.2f}s: "
+            f"{validation['vertex_count']:,} vertices, {validation['face_count']:,} faces."
+        )
+
+    return {
+        "valid": True,
+        "mesh": mesh,
+        "mesh_ply_path": mesh_ply,
+        "mesh_obj_path": mesh_obj,
+        "mesh_stl_path": mesh_stl,
+        "vggt_point_cloud_path": pcd_ply,
+        "vertex_count": validation["vertex_count"],
+        "face_count": validation["face_count"],
+        "has_faces": True,
+        "method": method,
+        "poisson_depth": poisson_depth,
+        "density_quantile": density_quantile,
+        "reconstruction_time_seconds": round(dt, 2),
+        "bounding_box": validation["bounding_box"]
+    }
+
+
 def run_vggt_reconstruction(
     image_paths: List[str],
     output_dir: Optional[str] = None,
@@ -383,6 +634,10 @@ def run_vggt_reconstruction(
     voxel_size: Optional[float] = None,
     export_colmap: bool = True,
     use_ba: bool = False,
+    generate_mesh_flag: bool = True,
+    mesh_method: str = "Poisson",
+    poisson_depth: int = 8,
+    density_quantile: float = 0.01,
     progress_callback=None
 ) -> Dict[str, Any]:
     """
@@ -629,6 +884,24 @@ def run_vggt_reconstruction(
     with open(os.path.join(cameras_dir, "cameras.json"), "w", encoding="utf-8") as f:
         json.dump(cameras_list, f, indent=2)
 
+    # 8b. Surface Mesh Reconstruction (Screened Poisson / BPA)
+    vggt_pcd_path = os.path.join(output_dir, "vggt_point_cloud.ply")
+    o3d.io.write_point_cloud(vggt_pcd_path, filtered_pcd, write_ascii=False)
+
+    mesh_info = {}
+    if generate_mesh_flag and final_point_count >= 30:
+        if progress_callback:
+            progress_callback(f"[VGGT] Generating genuine 3D surface mesh ({mesh_method} depth={poisson_depth})...")
+        mesh_info = generate_vggt_surface_mesh(
+            point_cloud=filtered_pcd,
+            output_dir=output_dir,
+            method=mesh_method,
+            poisson_depth=poisson_depth,
+            density_quantile=density_quantile,
+            camera_centers=np.array([c["center"] for c in cameras_list]) if cameras_list else None,
+            progress_callback=progress_callback
+        )
+
     # 9. Save Depth & Point Map npz
     np.savez_compressed(
         os.path.join(depth_dir, "depth_maps.npz"),
@@ -791,6 +1064,9 @@ def run_vggt_reconstruction(
         "bounding_box_volume": round(bbox_volume, 4),
         "point_density_per_m3": round(final_point_count / max(bbox_volume, 1e-4), 1),
         "ply_path": ply_path,
+        "vggt_point_cloud_path": vggt_pcd_path,
+        "vggt_surface_mesh_path": mesh_info.get("mesh_ply_path"),
+        "mesh": {k: v for k, v in mesh_info.items() if k != "mesh"},
         "cameras_dir": cameras_dir,
         "depth_dir": depth_dir,
         "point_maps_dir": point_maps_dir,
@@ -813,6 +1089,9 @@ def run_vggt_reconstruction(
         "cameras": cameras_list,
         "metadata": metadata,
         "ply_path": ply_path,
+        "vggt_point_cloud_path": vggt_pcd_path,
+        "vggt_surface_mesh_path": mesh_info.get("mesh_ply_path"),
+        "mesh": mesh_info,
         "output_dir": output_dir,
         "runtime": total_pipeline_time,
         "validation_diagnostics": validation_diagnostics

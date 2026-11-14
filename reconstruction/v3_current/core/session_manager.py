@@ -1,29 +1,31 @@
 """
-Session state manager for PowerTwinAI.
+core/session_manager.py
+-----------------------
+Robust session state manager for PowerTwinAI enterprise workstation.
+Initializes and maintains reactive navigation, persistent dataset selections,
+background job tracking, and active visualizer states.
 """
 
+import os
+import json
 import streamlit as st
+from config.paths import RESULT_FILE, STATUS_FILE, TEMP_DIR
 
 
 def initialize_session():
     """
-    Initialize all required Streamlit session variables.
+    Initialize all required Streamlit session variables with reactive background tracking.
     """
-
-    import os
-    import json
-    from config.paths import RESULT_FILE, STATUS_FILE
-
     is_running = False
     already_done = False
 
     if os.path.exists(STATUS_FILE):
         try:
-            with open(STATUS_FILE, "r") as f:
+            with open(STATUS_FILE, "r", encoding="utf-8") as f:
                 s = json.load(f).get("status")
                 if s == "RUNNING":
                     is_running = True
-                elif s == "COMPLETED" and os.path.exists(RESULT_FILE):
+                elif s == "COMPLETED":
                     already_done = True
         except Exception:
             pass
@@ -33,7 +35,7 @@ def initialize_session():
     if not is_running and not already_done:
         if os.path.exists(runner_pid_file):
             try:
-                with open(runner_pid_file, "r") as pf:
+                with open(runner_pid_file, "r", encoding="utf-8") as pf:
                     r_pid = int(pf.read().strip())
                 if os.name == "nt":
                     import subprocess
@@ -58,3 +60,32 @@ def initialize_session():
         st.session_state["reconstruction_done"] = True
     elif "reconstruction_done" not in st.session_state:
         st.session_state["reconstruction_done"] = False
+
+    # Navigation state
+    if "nav_page" not in st.session_state:
+        st.session_state["nav_page"] = "Overview"
+
+    # Active reconstruction backend choice
+    if "active_backend" not in st.session_state:
+        st.session_state["active_backend"] = "colmap"
+
+    # Dataset persistence
+    if "dataset_mode" not in st.session_state:
+        st.session_state["dataset_mode"] = "folder"
+    if "dataset_folder" not in st.session_state:
+        default_folder = os.path.abspath(os.path.join(os.path.dirname(TEMP_DIR), "colmap_workspace", "images"))
+        if not os.path.exists(default_folder):
+            default_folder = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(TEMP_DIR)), "colmap_workspace", "images"))
+        st.session_state["dataset_folder"] = default_folder if os.path.exists(default_folder) else ""
+    if "dataset_files" not in st.session_state:
+        st.session_state["dataset_files"] = []
+
+    # Viewer state
+    if "viewer_backend" not in st.session_state:
+        st.session_state["viewer_backend"] = "COLMAP"
+    if "viewer_color_mode" not in st.session_state:
+        st.session_state["viewer_color_mode"] = "Photorealistic RGB"
+
+    # Active recent activity or notification message
+    if "status_notification" not in st.session_state:
+        st.session_state["status_notification"] = None

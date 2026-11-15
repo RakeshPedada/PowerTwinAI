@@ -345,9 +345,28 @@ def run_mast3r_reconstruction(
               confidence_dir, diagnostics_dir, debug_visuals_dir, colmap_export_dir]:
         os.makedirs(d, exist_ok=True)
 
-    if progress_callback:
-        progress_callback("[MASt3R-SfM] Initializing official MASt3R-SfM pipeline...")
-        progress_callback(f"[MASt3R-SfM] Output directory: {output_dir}")
+    cache_align_dir = os.path.join(alignment_dir, "cache")
+    os.makedirs(cache_align_dir, exist_ok=True)
+
+    def _notify(stage: str, step: str, progress: float, last_op: str = "", pairs_done: int = None, pairs_total: int = None):
+        if not progress_callback:
+            return
+        elapsed = round(time.perf_counter() - total_start_time, 1)
+        info = {
+            "stage": stage,
+            "step": step,
+            "progress": round(progress, 3),
+            "last_op": last_op or step,
+            "elapsed": elapsed,
+            "pairs_done": pairs_done,
+            "pairs_total": pairs_total
+        }
+        try:
+            progress_callback(info)
+        except TypeError:
+            progress_callback(f"[MASt3R-SfM] [{stage}] {step} ({elapsed}s)")
+
+    _notify("Dataset Preparation", "Validating input images and resolution...", 0.05, "Images validated")
 
     # 1. Dataset validation and subsampling if requested
     valid_paths = [p for p in image_paths if os.path.exists(p)]
@@ -361,15 +380,15 @@ def run_mast3r_reconstruction(
         selected_paths = valid_paths
 
     num_images = len(selected_paths)
-    if progress_callback:
-        progress_callback(f"[MASt3R-SfM] Processing {num_images} images at resolution {image_size}px...")
+    _notify("Dataset Preparation", f"Loaded {num_images} images for reconstruction at {image_size}px.", 0.08, f"{num_images} images staged")
 
     # 2. Load MASt3R Model
-    if progress_callback:
-        progress_callback("[MASt3R-SfM] Loading official MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric...")
+    _notify("Model Initialization", "Loading official MASt3R ViT-Large model and weights...", 0.12, "Loading model weights")
     model = get_mast3r_model(device=device)
+    _notify("Model Initialization", "MASt3R model loaded into memory.", 0.18, "Model ready")
 
     # 3. Stage 1: Retrieval & Pair Selection (Requirement 8 & 8.5)
+    _notify("Pair Selection", f"Executing {pairing_mode} pair selection...", 0.20, f"Selecting pairs ({pairing_mode})")
     pairing_res = select_candidate_pairs(
         image_paths=selected_paths,
         pairing_mode=pairing_mode,
@@ -384,6 +403,9 @@ def run_mast3r_reconstruction(
     candidate_pairs = pairing_res["candidate_pairs"]
     pair_indices = pairing_res["pair_indices"]
     telemetry_pairing = pairing_res["telemetry"]
+    total_pairs = len(candidate_pairs)
+
+    _notify("Pair Selection", f"Selected {total_pairs} candidate pairs ({telemetry_pairing.get('reduction_percentage', 0.0)}% reduction).", 0.25, f"{total_pairs} pairs selected")
 
     # Save pairs diagnostics (Requirement 19)
     with open(os.path.join(pairs_dir, "candidate_pairs.json"), "w", encoding="utf-8") as f:
@@ -393,6 +415,7 @@ def run_mast3r_reconstruction(
         }, f, indent=2)
 
     # 4. Stage 2: MASt3R Dense Matching & Verification (Requirement 9)
+    _notify("Pairwise Inference & Matching", f"Starting dense matching and forward caching across {total_pairs} pairs...", 0.26, "Matching initiated", pairs_done=0, pairs_total=total_pairs)
     accepted_pairs, matching_reports = filter_and_log_pairs_matching(
         model=model,
         candidate_pairs=candidate_pairs,
@@ -401,6 +424,7 @@ def run_mast3r_reconstruction(
         min_matches=min_matches,
         matching_conf_thr=matching_conf_thr,
         device=device,
+        cache_dir=cache_align_dir,
         progress_callback=progress_callback
     )
 
@@ -442,8 +466,9 @@ def run_mast3r_reconstruction(
     with open(os.path.join(matches_dir, "matching_reports.json"), "w", encoding="utf-8") as f:
         json.dump(matching_reports, f, indent=2)
 
+    _notify("Global Alignment", f"Running Sparse Global Alignment on {len(accepted_indices)} accepted edges...", 0.70, "Global alignment started")
+
     # 5. Stage 3: Sparse Global Alignment (Requirement 10)
-    cache_align_dir = os.path.join(alignment_dir, "cache")
     align_res = run_mast3r_sparse_global_alignment(
         model=model,
         image_paths=selected_paths,
@@ -471,10 +496,7 @@ def run_mast3r_reconstruction(
     colors_rgb = align_res["colors_rgb"]        # (N, H, W, 3)
 
     # 6. Stage 4: Confidence & Outlier Filtering (Requirement 12 & 13)
-    if progress_callback:
-        progress_callback(
-            f"[MASt3R-SfM] Applying confidence filtering (Threshold >= {min_conf_thr})..."
-        )
+    _notify("Point-Cloud Generation", f"Filtering dense points with confidence threshold >= {min_conf_thr}...", 0.76, "Confidence filtering")
 
     if isinstance(pts3d_raw, (list, tuple)):
         pts3d_raw = np.stack(pts3d_raw, axis=0)
@@ -572,10 +594,7 @@ def run_mast3r_reconstruction(
 
     if generate_mesh_flag and len(final_points) >= 30:
         t_mesh_start = time.perf_counter()
-        if progress_callback:
-            progress_callback(
-                f"[MASt3R-SfM] Generating real triangular surface mesh via {mesh_method} (Poisson depth={poisson_depth})..."
-            )
+        _notify("Surface Mesh Generation", f"Reconstructing 3D surface mesh via {mesh_method} (Poisson depth={poisson_depth})...", 0.84, f"Mesh generation ({mesh_method})")
 
         try:
             from mesh_generator import generate_mesh as ptw_generate_mesh, is_mesh_ply
@@ -694,8 +713,7 @@ def run_mast3r_reconstruction(
     # 10. Stage 5: COLMAP Export & Optional Bundle Adjustment (Requirement 14 & 15)
     ba_report = {"success": False, "method": "none", "log": ""}
     if export_colmap or use_ba:
-        if progress_callback:
-            progress_callback("[MASt3R-SfM] Exporting official COLMAP model (.bin and .txt)...")
+        _notify("Export", "Exporting official COLMAP model (.bin and .txt)...", 0.92, "COLMAP export")
 
         # Subsample points for COLMAP export if needed
         max_colmap_pts = 60000
@@ -868,14 +886,19 @@ def run_mast3r_reconstruction(
             f"[MASt3R-SfM] Reconstruction finished in {total_pipeline_time}s! Points: {len(final_points):,} | Triangles: {mesh_report['triangles']:,} | Volume: {bbox_volume:.3f} m^3 | Registered: {num_images}."
         )
 
+    cam_centers = np.array([c["center"] for c in scaled_cameras]) if scaled_cameras else np.empty((0, 3))
     return {
         "points": final_points,
         "colors": final_colors,
         "cameras": scaled_cameras,
+        "camera_positions": cam_centers,
         "metadata": metadata,
         "mesh": mesh_report,
         "ply_path": primary_ply_path,
+        "point_cloud_ply": primary_ply_path,
         "mesh_path": structured_mesh_path,
+        "mesh_ply": structured_mesh_path,
         "colmap_export_dir": colmap_export_dir,
-        "debug_dir": debug_visuals_dir
+        "debug_dir": debug_visuals_dir,
+        "runtime": total_pipeline_time
     }

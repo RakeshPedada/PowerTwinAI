@@ -47,6 +47,31 @@ def render_progress_panel(log_file, status_file):
 
     st.progress(min(1.0, max(0.0, current_progress)), text=f"⚡ {current_step}")
 
+    # Structured Live Execution Telemetry Cards
+    stage_name = status_data.get("stage")
+    pairs_total = status_data.get("pairs_total")
+    elapsed_val = status_data.get("elapsed")
+    last_op = status_data.get("last_op")
+
+    if stage_name or pairs_total or elapsed_val or last_op:
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric("Current Stage", stage_name or "Reconstruction")
+        with m2:
+            if pairs_total:
+                done = status_data.get("pairs_done", 0)
+                st.metric("Pairs Processed", f"{done} / {pairs_total}")
+            else:
+                st.metric("Pipeline Status", status_data.get("status", "RUNNING"))
+        with m3:
+            if elapsed_val is not None:
+                mins, secs = divmod(int(elapsed_val), 60)
+                st.metric("Elapsed Time", f"{mins:02d}m {secs:02d}s")
+            else:
+                st.metric("Execution Mode", "Active")
+        with m4:
+            st.metric("Last Operation", (last_op[:25] + "...") if last_op and len(last_op) > 25 else (last_op or "In progress"))
+
     logs = []
 
     if os.path.exists(log_file):

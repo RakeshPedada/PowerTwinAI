@@ -72,13 +72,23 @@ def log_message(message):
 # STATUS
 # =========================================================
 
-def save_status(status, step=None, progress=None):
+def save_status(status, step=None, progress=None, stage=None, pairs_done=None, pairs_total=None, elapsed=None, last_op=None):
     try:
         data = {"status": status}
         if step is not None:
             data["step"] = step
         if progress is not None:
             data["progress"] = progress
+        if stage is not None:
+            data["stage"] = stage
+        if pairs_done is not None:
+            data["pairs_done"] = pairs_done
+        if pairs_total is not None:
+            data["pairs_total"] = pairs_total
+        if elapsed is not None:
+            data["elapsed"] = elapsed
+        if last_op is not None:
+            data["last_op"] = last_op
         os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
         tmp_status = STATUS_FILE + ".tmp"
         with open(tmp_status, "w", encoding="utf-8") as f:
@@ -253,7 +263,37 @@ try:
         sys.exit(0)
 
     elif active_backend == "mast3r":
-        save_status("RUNNING", step="MASt3R matching & sparse global alignment...", progress=0.30)
+        def mast3r_runner_progress(info):
+            if isinstance(info, dict):
+                stage = info.get("stage", "MASt3R-SfM")
+                step = info.get("step", "")
+                progress = info.get("progress", 0.3)
+                pairs_done = info.get("pairs_done")
+                pairs_total = info.get("pairs_total")
+                elapsed = info.get("elapsed")
+                last_op = info.get("last_op")
+                save_status(
+                    "RUNNING",
+                    step=step,
+                    progress=progress,
+                    stage=stage,
+                    pairs_done=pairs_done,
+                    pairs_total=pairs_total,
+                    elapsed=elapsed,
+                    last_op=last_op
+                )
+                msg = f"[{stage}] {step}"
+                if pairs_done is not None and pairs_total is not None:
+                    msg += f" (Pairs: {pairs_done}/{pairs_total})"
+                if elapsed is not None:
+                    msg += f" [{elapsed:.1f}s]"
+                log_message(msg)
+            else:
+                s_msg = str(info)
+                log_message(s_msg)
+                save_status("RUNNING", step=s_msg)
+
+        save_status("RUNNING", step="MASt3R pipeline initialization...", progress=0.05, stage="Model Initialization")
         log_message("[MAST3R] Launching official Naver MASt3R-SfM reconstruction pipeline...")
         from reconstruction.mast3r import run_mast3r_reconstruction
 
@@ -265,7 +305,7 @@ try:
             pairing_mode=config.get("mast3r_pairing", "Mode C (Hybrid)"),
             generate_mesh=True,
             poisson_depth=int(config.get("poisson_depth", 8)),
-            progress_callback=log_message
+            progress_callback=mast3r_runner_progress
         )
 
         save_status("RUNNING", step="Saving MASt3R-SfM 3D reconstruction telemetry & data...", progress=0.90)

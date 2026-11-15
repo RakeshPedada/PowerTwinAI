@@ -177,8 +177,13 @@ def select_candidate_pairs(
     sim_overlap = None
     final_sim_mat = None
 
-    effective_key_images = min(num_key_images, num_images)
-    effective_neighbors = min(num_neighbors, num_images - 1)
+    # Adaptively scale key images and neighbors to prevent redundant exhaustive K_n complete graphs on small datasets
+    if num_images <= 20:
+        effective_key_images = max(2, min(num_key_images, max(2, num_images // 3)))
+        effective_neighbors = min(num_neighbors, 2 if device == "cpu" else 4)
+    else:
+        effective_key_images = min(num_key_images, num_images)
+        effective_neighbors = min(num_neighbors, num_images - 1)
 
     # 1. Evaluate Mode A (MASt3R retrieval)
     if "Mode A" in pairing_mode or "Mode C" in pairing_mode or "Retrieval" in pairing_mode:

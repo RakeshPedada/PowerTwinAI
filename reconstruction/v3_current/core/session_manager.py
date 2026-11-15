@@ -12,47 +12,96 @@ import streamlit as st
 from config.paths import RESULT_FILE, STATUS_FILE, TEMP_DIR
 
 
+def _is_active_process_alive(pid: int) -> bool:
+    """Accurately check whether the given PID is actively running Python or COLMAP."""
+    if not pid or pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            res = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True, timeout=2)
+            if "No tasks" in res.stdout or "INFO:" in res.stdout:
+                return False
+            lines = [l for l in res.stdout.strip().split("\n") if l.strip()]
+            for line in lines[2:]:
+                if str(pid) in line and ("python" in line.lower() or "colmap" in line.lower()):
+                    return True
+            return False
+        except Exception:
+            return False
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+
+def _is_colmap_process_alive() -> bool:
+    """Check if colmap.exe is currently running on the system."""
+    if os.name == "nt":
+        try:
+            out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq colmap.exe"], capture_output=True, text=True, timeout=2)
+            return "colmap.exe" in out.stdout.lower()
+        except Exception:
+            return False
+    return False
+
+
 def initialize_session():
     """
     Initialize all required Streamlit session variables with reactive background tracking.
+    Never allows stale status files or dead processes to falsely lock the application.
     """
+    import subprocess
     is_running = False
     already_done = False
 
+    status_state = "IDLE"
     if os.path.exists(STATUS_FILE):
         try:
             with open(STATUS_FILE, "r", encoding="utf-8") as f:
-                s = json.load(f).get("status")
-                if s == "RUNNING":
-                    is_running = True
-                elif s == "COMPLETED":
-                    already_done = True
+                status_state = json.load(f).get("status", "IDLE")
         except Exception:
             pass
 
-    # Check if runner PID or background process is actively executing
+    # Process alive check
     runner_pid_file = os.path.join(os.path.dirname(STATUS_FILE), "runner.pid")
-    if not is_running and not already_done:
-        if os.path.exists(runner_pid_file):
-            try:
-                with open(runner_pid_file, "r", encoding="utf-8") as pf:
-                    r_pid = int(pf.read().strip())
-                if os.name == "nt":
-                    import subprocess
-                    chk = subprocess.run(["tasklist", "/FI", f"PID eq {r_pid}"], capture_output=True, text=True)
-                    if str(r_pid) in chk.stdout:
-                        is_running = True
-            except Exception:
-                pass
+    pid_alive = False
+    if os.path.exists(runner_pid_file):
+        try:
+            with open(runner_pid_file, "r", encoding="utf-8") as pf:
+                r_pid = int(pf.read().strip())
+            pid_alive = _is_active_process_alive(r_pid)
+            if not pid_alive:
+                try:
+                    os.remove(runner_pid_file)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
-        if not is_running and os.name == "nt":
-            try:
-                import subprocess
-                out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq colmap.exe"], capture_output=True, text=True)
-                if "colmap.exe" in out.stdout:
-                    is_running = True
-            except Exception:
-                pass
+    colmap_alive = _is_colmap_process_alive()
+    actual_process_alive = pid_alive or colmap_alive
+
+    if actual_process_alive:
+        is_running = True
+    elif status_state == "RUNNING" and not actual_process_alive:
+        # Stale RUNNING state from aborted or terminated job — auto-heal to IDLE!
+        is_running = False
+        try:
+            with open(STATUS_FILE, "w", encoding="utf-8") as f:
+                json.dump({
+                    "status": "IDLE",
+                    "step": "Pipeline ready for reconstruction.",
+                    "progress": 0.0
+                }, f, indent=2)
+        except Exception:
+            pass
+    elif status_state == "COMPLETED":
+        already_done = True
+        is_running = False
+    else:
+        is_running = False
 
     # Ensure st.session_state reflects the live background state
     st.session_state["reconstruction_running"] = is_running

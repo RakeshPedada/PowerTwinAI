@@ -455,6 +455,22 @@ def render_new_reconstruction():
     )
 
     can_launch = len(resolved_images) >= MIN_REQUIRED_IMAGES
+    is_job_running = st.session_state.get("reconstruction_running", False)
+
+    if is_job_running:
+        st.info("⚡ A 3D reconstruction job is actively running in the background. You can monitor progress in Reconstruction Studio or force reset below.")
+        col_unl, col_stu = st.columns([1, 2])
+        with col_unl:
+            if st.button("🛑 Force Unlock & Reset", key=f"btn_force_unlock_{backend}"):
+                from core.reconstruction_manager import cancel_reconstruction
+                cancel_reconstruction(TEMP_DIR)
+                st.session_state["reconstruction_running"] = False
+                st.rerun()
+        with col_stu:
+            if st.button("🚀 View in Reconstruction Studio", key=f"btn_goto_studio_{backend}"):
+                st.session_state["nav_page"] = "Reconstruction Studio"
+                st.rerun()
+
     if not can_launch:
         st.warning(f"⚠️ Please provide at least {MIN_REQUIRED_IMAGES} images in Step 1 to enable reconstruction.")
 
@@ -462,7 +478,8 @@ def render_new_reconstruction():
         f"🚀 Start {backend.upper()} 3D Reconstruction",
         type="primary",
         width="stretch",
-        disabled=not can_launch or st.session_state.get("reconstruction_running", False)
+        disabled=not can_launch or is_job_running,
+        key=f"btn_start_recon_launch_{backend}"
     )
 
     if launch_clicked:

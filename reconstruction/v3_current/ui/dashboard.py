@@ -21,21 +21,29 @@ def render_dashboard():
     # ── Top Hero / Welcome Banner ─────────────────────────────────────────────
     st.markdown(
         """
-<div class="eng-card" style="background: linear-gradient(135deg, rgba(22, 30, 45, 0.95) 0%, rgba(28, 38, 56, 0.95) 100%); margin-bottom: 24px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-    <div>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 26px;">⚡</span>
-        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #fff;">PowerTwinAI 3D Reconstruction Workstation</h2>
+<div class="eng-card" style="background: linear-gradient(135deg, rgba(21, 31, 51, 0.95) 0%, rgba(27, 41, 66, 0.95) 100%); margin-bottom: 24px; border: 1px solid var(--border);">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 18px;">
+    <div style="max-width: 820px;">
+      <div style="display: inline-block; padding: 4px 10px; background: rgba(36, 155, 255, 0.12); border: 1px solid rgba(36, 155, 255, 0.3); border-radius: 6px; font-size: 11px; font-weight: 700; color: #93c5fd; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px;">
+        WELCOME TO POWERTWINAI
       </div>
-      <p style="margin: 8px 0 0; font-size: 13px; color: #94A3B8; max-width: 780px;">
-        Enterprise multi-backend platform integrating classical incremental <b>COLMAP SfM</b>,
-        feed-forward visual geometry <b>VGGT-1B</b>, and retrieval-grounded <b>MASt3R-SfM</b> with automated surface meshing and ML diagnostics.
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #F1F5FC; letter-spacing: -0.02em;">PowerTwin<span style="color: #249BFF;">AI</span></h1>
+        <span style="font-size: 14px; font-weight: 600; color: #8057FF; background: rgba(128, 87, 255, 0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(128, 87, 255, 0.3);">Enterprise</span>
+      </div>
+      <div style="font-size: 14px; font-weight: 600; color: #A5B4CC; margin-bottom: 10px;">
+        Advanced SfM Reconstruction Engine
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #A5B4CC; line-height: 1.6;">
+        Professional multi-backend 3D reconstruction platform integrating classical incremental <b>COLMAP SfM</b>,
+        feed-forward visual geometry <b>VGGT-1B</b>, and retrieval-grounded <b>MASt3R-SfM</b> with automated Poisson surface meshing, ML overlap ranking, and GPR diagnostics.
       </p>
     </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <span class="badge-pill badge-primary">v3.2 Production</span>
-      <span class="badge-pill badge-success">3 Backends Online</span>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+      <div style="display: flex; gap: 8px;">
+        <span class="badge-pill badge-primary">v3.4.0 Production</span>
+        <span class="badge-pill badge-success">● 3 Backends Online</span>
+      </div>
     </div>
   </div>
 </div>
@@ -47,33 +55,33 @@ def render_dashboard():
     col_act1, col_act2, col_act3 = st.columns([2, 1, 1])
     with col_act1:
         st.markdown(
-            f"<p style='color: #cbd5e1; font-size: 13px; margin-top: 6px;'>"
-            f"Active Workspace: <code>{os.path.basename(os.getcwd())}</code> &nbsp;·&nbsp; "
-            f"Dataset: <b>{summary['total_images_processed']} images</b> ready for multi-view stereo."
+            f"<p style='color: #A5B4CC; font-size: 13px; margin-top: 6px;'>"
+            f"Active Workspace: <code style='color: #93c5fd; background: #0B1120;'>{os.path.basename(os.getcwd())}</code> &nbsp;·&nbsp; "
+            f"Dataset: <b style='color: #F1F5FC;'>{summary['total_images_processed']} images</b> ready for reconstruction."
             f"</p>",
             unsafe_allow_html=True
         )
     with col_act2:
-        if st.button("➕ New Reconstruction", type="primary", width="stretch"):
+        if st.button("🚀 Start New Project", type="primary", width="stretch", key="dash_btn_start_new_project"):
             st.session_state["nav_page"] = "New Reconstruction"
             st.rerun()
     with col_act3:
-        if st.button("🌐 Launch 3D Viewer", type="secondary", width="stretch"):
+        if st.button("🌐 Launch 3D Viewer", type="secondary", width="stretch", key="dash_btn_launch_viewer"):
             st.session_state["nav_page"] = "3D Viewer"
             st.rerun()
 
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
     # ── Statistics Metric Cards (Real Measured Values) ─────────────────────────
-    st.markdown("<div class='section-sub-label' style='margin-bottom: 12px; font-weight: 700; color: #94A3B8; font-size: 12px; letter-spacing: 0.05em;'>WORKSPACE GEOMETRIC TELEMETRY</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-sub-label' style='margin-bottom: 12px; font-weight: 700; color: #A5B4CC; font-size: 12px; letter-spacing: 0.05em;'>WORKSPACE GEOMETRIC TELEMETRY</div>", unsafe_allow_html=True)
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
         st.markdown(
             f"""
 <div class="metric-card">
   <div class="metric-label-row">
-    <span>Reconstructions</span>
-    <span style="color: #38BDF8;">●</span>
+    <span>Projects</span>
+    <span style="color: #249BFF;">●</span>
   </div>
   <div class="metric-value">{summary['total_reconstruction_projects']}</div>
   <div class="metric-sub">Verified models on disk</div>
@@ -86,8 +94,8 @@ def render_dashboard():
             f"""
 <div class="metric-card">
   <div class="metric-label-row">
-    <span>Dataset Views</span>
-    <span style="color: #7C5CFC;">●</span>
+    <span>Images Processed</span>
+    <span style="color: #8057FF;">●</span>
   </div>
   <div class="metric-value">{summary['total_images_processed']}</div>
   <div class="metric-sub">Multi-view input frames</div>
@@ -100,11 +108,11 @@ def render_dashboard():
             f"""
 <div class="metric-card">
   <div class="metric-label-row">
-    <span>Reconstructed Points</span>
-    <span style="color: #20C6A0;">●</span>
+    <span>Successful Runs</span>
+    <span style="color: #22C987;">●</span>
   </div>
   <div class="metric-value">{summary['total_3d_points']:,}</div>
-  <div class="metric-sub">Dense geometric points</div>
+  <div class="metric-sub">Reconstructed 3D Points</div>
 </div>
 """,
             unsafe_allow_html=True
@@ -114,7 +122,7 @@ def render_dashboard():
             f"""
 <div class="metric-card">
   <div class="metric-label-row">
-    <span>Backends</span>
+    <span>Available Backends</span>
     <span style="color: #F5B942;">●</span>
   </div>
   <div class="metric-value">{summary['available_backends_count']}</div>
@@ -128,11 +136,11 @@ def render_dashboard():
             f"""
 <div class="metric-card">
   <div class="metric-label-row">
-    <span>Latest Latency</span>
-    <span style="color: #EF5350;">●</span>
+    <span>Last Runtime</span>
+    <span style="color: #F05D73;">●</span>
   </div>
   <div class="metric-value">{summary['latest_runtime']:.1f} s</div>
-  <div class="metric-sub">Feed-forward execution</div>
+  <div class="metric-sub">Execution latency</div>
 </div>
 """,
             unsafe_allow_html=True
@@ -141,7 +149,7 @@ def render_dashboard():
     st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
     # ── 3-Backend Architecture Status Cards ──────────────────────────────────
-    st.markdown("<div class='section-sub-label' style='margin-bottom: 12px; font-weight: 700; color: #94A3B8; font-size: 12px; letter-spacing: 0.05em;'>RECONSTRUCTION BACKEND PLATFORMS</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-sub-label' style='margin-bottom: 12px; font-weight: 700; color: #A5B4CC; font-size: 12px; letter-spacing: 0.05em;'>RECONSTRUCTION BACKEND PLATFORMS</div>", unsafe_allow_html=True)
     b_col1, b_col2, b_col3 = st.columns(3)
 
     for col, (b_key, b_info) in zip([b_col1, b_col2, b_col3], backends.items()):
@@ -158,28 +166,28 @@ def render_dashboard():
 <div class="backend-card">
   <div>
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-      <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #fff;">{b_info['name']}</h3>
+      <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #F1F5FC;">{b_info['name']}</h3>
       <span class="badge-pill {badge_cls}">{status_badge}</span>
     </div>
     <div style="font-size: 11px; color: {b_info['badge_color']}; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">
       {b_info['tag']}
     </div>
-    <p style="font-size: 12px; color: #94A3B8; line-height: 1.5; margin-bottom: 14px;">
+    <p style="font-size: 12px; color: #A5B4CC; line-height: 1.5; margin-bottom: 14px;">
       {b_info['description']}
     </p>
   </div>
   <div style="border-top: 1px solid var(--border); padding-top: 12px;">
-    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #cbd5e1; margin-bottom: 4px;">
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #A5B4CC; margin-bottom: 4px;">
       <span>Execution Device:</span>
-      <span style="font-weight: 600; color: #fff;">{b_info['device']}</span>
+      <span style="font-weight: 600; color: #F1F5FC;">{b_info['device']}</span>
     </div>
-    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #cbd5e1; margin-bottom: 4px;">
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #A5B4CC; margin-bottom: 4px;">
       <span>Verified 3D Points:</span>
-      <span style="font-weight: 600; color: #fff;">{pts_count:,}</span>
+      <span style="font-weight: 600; color: #F1F5FC;">{pts_count:,}</span>
     </div>
-    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #cbd5e1;">
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #A5B4CC;">
       <span>Surface Triangles:</span>
-      <span style="font-weight: 600; color: #fff;">{faces_count:,}</span>
+      <span style="font-weight: 600; color: #F1F5FC;">{faces_count:,}</span>
     </div>
   </div>
 </div>
@@ -190,7 +198,7 @@ def render_dashboard():
     st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
     # ── Recent Reconstruction Activity & History ─────────────────────────────
-    st.markdown("<div class='section-sub-label' style='margin-bottom: 12px; font-weight: 700; color: #94A3B8; font-size: 12px; letter-spacing: 0.05em;'>RECENT RECONSTRUCTION RUNS & ARTIFACTS</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-sub-label' style='margin-bottom: 12px; font-weight: 700; color: #A5B4CC; font-size: 12px; letter-spacing: 0.05em;'>RECENT RECONSTRUCTION RUNS & ARTIFACTS</div>", unsafe_allow_html=True)
 
     if recent_activity:
         table_rows = []

@@ -19,31 +19,33 @@ def load_styles() -> None:
 
 /* ── Global Color System (User Specification) ── */
 :root {
-    --bg-main: #0B0F19;
-    --bg-secondary: #111827;
-    --bg-sidebar: #101522;
-    --bg-card: #161E2D;
-    --bg-elevated: #1C2638;
-    --border: #2A3548;
-    --border-hover: #3E4D67;
-    --primary-accent: #7C5CFC;
-    --primary-hover: #6B46F5;
-    --secondary-accent: #20C6A0;
-    --info-accent: #38BDF8;
-    --warning: #F5B942;
-    --error: #EF5350;
-    --text-main: #F1F5F9;
-    --text-secondary: #94A3B8;
+    --bg-main: #0B1120;
+    --bg-sidebar: #10192B;
+    --bg-card: #151F33;
+    --bg-secondary: #1B2942;
+    --bg-elevated: #1B2942;
+    --primary-accent: #249BFF;
+    --secondary-accent: #8057FF;
+    --primary-hover: #1D82D6;
+    --secondary-hover: #6D46E6;
+    --border: #263653;
+    --border-hover: #364B73;
+    --text-main: #F1F5FC;
+    --text-secondary: #A5B4CC;
     --text-muted: #64748B;
+    --success: #22C987;
+    --warning: #F5B942;
+    --error: #F05D73;
+    --info-accent: #249BFF;
 }
 
 html, body, [data-testid="stApp"] {
     font-family: 'Inter', 'Plus Jakarta Sans', -apple-system, sans-serif !important;
     background-color: var(--bg-main) !important;
     background-image: 
-        radial-gradient(at 10% 10%, rgba(124, 92, 252, 0.05) 0px, transparent 50%),
-        radial-gradient(at 90% 15%, rgba(32, 198, 160, 0.04) 0px, transparent 50%),
-        radial-gradient(at 50% 90%, rgba(56, 189, 248, 0.04) 0px, transparent 50%) !important;
+        radial-gradient(at 10% 10%, rgba(36, 155, 255, 0.06) 0px, transparent 50%),
+        radial-gradient(at 90% 15%, rgba(128, 87, 255, 0.05) 0px, transparent 50%),
+        radial-gradient(at 50% 90%, rgba(34, 201, 135, 0.03) 0px, transparent 50%) !important;
     background-attachment: fixed !important;
     color: var(--text-main) !important;
     letter-spacing: -0.01em;
@@ -149,8 +151,45 @@ header { visibility: hidden; }
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    padding: 10px 14px 4px;
+    padding: 10px 14px 6px;
     margin-top: 6px;
+}
+
+/* Hide default radio circle completely in sidebar */
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
+    display: none !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] > label {
+    display: flex !important;
+    align-items: center !important;
+    padding: 9px 14px !important;
+    margin-bottom: 4px !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-left: 3px solid transparent !important;
+    color: var(--text-secondary) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] > label:hover {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+/* Active navigation item with primary indicator */
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked),
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] {
+    background: rgba(36, 155, 255, 0.12) !important;
+    border: 1px solid rgba(36, 155, 255, 0.3) !important;
+    border-left: 3px solid var(--primary-accent) !important;
+    color: var(--text-main) !important;
+    font-weight: 600 !important;
 }
 
 /* Telemetry Footer in Sidebar */
@@ -347,21 +386,27 @@ header { visibility: hidden; }
 }
 
 .badge-primary {
-    background: rgba(124, 92, 252, 0.15);
+    background: rgba(36, 155, 255, 0.15);
+    color: #93c5fd;
+    border: 1px solid rgba(36, 155, 255, 0.35);
+}
+
+.badge-secondary {
+    background: rgba(128, 87, 255, 0.15);
     color: #c4b5fd;
-    border: 1px solid rgba(124, 92, 252, 0.35);
+    border: 1px solid rgba(128, 87, 255, 0.35);
 }
 
 .badge-success {
-    background: rgba(32, 198, 160, 0.15);
+    background: rgba(34, 201, 135, 0.15);
     color: #6ee7b7;
-    border: 1px solid rgba(32, 198, 160, 0.35);
+    border: 1px solid rgba(34, 201, 135, 0.35);
 }
 
 .badge-info {
-    background: rgba(56, 189, 248, 0.15);
+    background: rgba(36, 155, 255, 0.15);
     color: #7dd3fc;
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    border: 1px solid rgba(36, 155, 255, 0.35);
 }
 
 .badge-warning {
@@ -371,9 +416,9 @@ header { visibility: hidden; }
 }
 
 .badge-error {
-    background: rgba(239, 83, 80, 0.15);
+    background: rgba(240, 93, 115, 0.15);
     color: #fca5a5;
-    border: 1px solid rgba(239, 83, 80, 0.35);
+    border: 1px solid rgba(240, 93, 115, 0.35);
 }
 
 /* ── Interactive Workflow Steps ── */

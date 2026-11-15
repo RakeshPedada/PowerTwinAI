@@ -360,6 +360,29 @@ def render_new_reconstruction():
     gpu = get_gpu_info()
     backend = st.session_state.get("active_backend", "colmap")
 
+    # Safe default values across all backends to prevent UnboundLocalError
+    selected_preset = "High Density (Recommended)"
+    colmap_max_size = 4096
+    colmap_sift_features = 10240
+    colmap_matcher = "ML-Ranked Candidate Pairs (Smart & Fast)"
+    colmap_poisson = 8
+    colmap_reproj = 2.5
+    colmap_outlier = 1.5
+
+    vggt_frames = 8 if not gpu.get("cuda_available") else 24
+    vggt_mode = "Depth-Map Unprojection (Recommended)"
+    vggt_gen_mesh = True
+    vggt_conf = 1.8
+    vggt_poisson = 8
+    vggt_outliers = True
+
+    mast3r_size = 512
+    mast3r_pairing = "Mode C (Hybrid: Retrieval + ML Overlap)"
+    mast3r_gen_mesh = True
+    mast3r_min_matches = 15
+    mast3r_poisson = 8
+    mast3r_outliers = True
+
     # Dynamic controls based on selected backend
     if backend == "colmap":
         preset_options = ["High Density (Recommended)", "Standard", "Fast", "Neuralangelo High Fidelity"]
@@ -383,25 +406,36 @@ def render_new_reconstruction():
                 colmap_outlier = st.slider("Outlier Filter Strength", 1.0, 3.0, 1.5, 0.1, key="cfg_colmap_outlier")
 
     elif backend == "vggt":
+        vggt_presets = ["Balanced (24 frames, Conf 1.8)", "High Detail (36 frames, Conf 2.2, Octree 9)", "Fast / Memory Optimized (12 frames)"]
+        selected_preset = st.radio("VGGT Quality Preset:", vggt_presets, index=0, horizontal=True)
+        def_frames = 36 if "High Detail" in selected_preset else (12 if "Fast" in selected_preset else (8 if not gpu.get("cuda_available") else 24))
+        def_conf = 2.2 if "High Detail" in selected_preset else (1.5 if "Fast" in selected_preset else 1.8)
+        def_poisson = 9 if "High Detail" in selected_preset else 8
+
         vp1, vp2 = st.columns(2)
         with vp1:
-            vggt_frames = st.slider("Max Sequence Frames:", 2, 64, 8 if not gpu.get("cuda_available") else 24, 2, key="cfg_vggt_frames")
+            vggt_frames = st.slider("Max Sequence Frames:", 2, 64, def_frames, 2, key="cfg_vggt_frames")
             vggt_mode = st.selectbox("3D Reconstruction Branch:", ["Depth-Map Unprojection (Recommended)", "Direct Point-Head Output"], key="cfg_vggt_mode")
             vggt_gen_mesh = st.checkbox("Generate 3D Surface Mesh (Screened Poisson)", value=True, key="cfg_vggt_mesh_chk")
         with vp2:
-            vggt_conf = st.slider("Depth Confidence Cutoff Threshold:", 1.0, 10.0, 2.0, 0.1, key="cfg_vggt_conf")
-            vggt_poisson = st.slider("Poisson Octree Depth:", 6, 11, 8, 1, key="cfg_vggt_poisson")
+            vggt_conf = st.slider("Depth Confidence Cutoff Threshold:", 1.0, 10.0, def_conf, 0.1, key="cfg_vggt_conf")
+            vggt_poisson = st.slider("Poisson Octree Depth:", 6, 11, def_poisson, 1, key="cfg_vggt_poisson")
             vggt_outliers = st.checkbox("Statistical Outlier Filter", value=True, key="cfg_vggt_outliers")
 
     else:
         # MASt3R
+        mast3r_presets = ["Hybrid (Mode C: Retrieval + Overlap)", "Fast (Mode A: Retrieval Only)", "High Density (512px + 20 inliers)"]
+        selected_preset = st.radio("MASt3R Quality Preset:", mast3r_presets, index=0, horizontal=True)
+        def_res = 384 if "Fast" in selected_preset else 512
+        def_matches = 20 if "High Density" in selected_preset else 15
+
         mp1, mp2 = st.columns(2)
         with mp1:
-            mast3r_size = st.selectbox("Processing Resolution:", [512, 384, 256], index=0, key="cfg_mast3r_res")
+            mast3r_size = st.selectbox("Processing Resolution:", [512, 384, 256], index=0 if def_res == 512 else 1, key="cfg_mast3r_res")
             mast3r_pairing = st.selectbox("Pair Selection Strategy:", ["Mode C (Hybrid: Retrieval + ML Overlap)", "Mode A (MASt3R Retrieval Only)", "Mode B (ML Visual Overlap Only)"], index=0, key="cfg_mast3r_pair")
             mast3r_gen_mesh = st.checkbox("Generate Surface Mesh (Poisson)", value=True, key="cfg_mast3r_mesh_chk")
         with mp2:
-            mast3r_min_matches = st.slider("Minimum Inlier Matches per Pair:", 5, 50, 15, key="cfg_mast3r_matches")
+            mast3r_min_matches = st.slider("Minimum Inlier Matches per Pair:", 5, 50, def_matches, key="cfg_mast3r_matches")
             mast3r_poisson = st.slider("Poisson Octree Depth:", 6, 11, 8, 1, key="cfg_mast3r_poisson")
             mast3r_outliers = st.checkbox("Statistical Outlier Pruning", value=True, key="cfg_mast3r_outliers")
 
@@ -439,27 +473,49 @@ def render_new_reconstruction():
         # 1. Output comprehensive dataset diagnostic debug report
         print_dataset_debug_report(backend)
 
-        # 2. Persist active configuration including backend
+        # 2. Persist active configuration specifically for selected backend
         os.makedirs(TEMP_DIR, exist_ok=True)
-        active_cfg = {
-            "name": selected_preset,
-            "backend": backend,
-            "image_max_size": colmap_max_size,
-            "pm_max_image_size": colmap_max_size,
-            "pm_window_radius": 9,
-            "pm_geom_consistency": True,
-            "fusion_min_num_pixels": 2,
-            "fusion_max_reproj_error": colmap_reproj,
-            "outlier_std_ratio": colmap_outlier,
-            "poisson_depth": colmap_poisson,
-            "mesh_density_trim": 0.08,
-            "sift_max_features": colmap_sift_features,
-            "matcher": "ml_ranked" if "ML-Ranked" in colmap_matcher else "exhaustive",
-            "use_gpu": gpu.get("cuda_available", False),
-            "vggt_mode": "depth",
-            "vggt_conf": 1.8,
-            "mast3r_pairing": "Mode C (Hybrid)"
-        }
+        if backend == "colmap":
+            active_cfg = {
+                "name": selected_preset,
+                "backend": "colmap",
+                "image_max_size": colmap_max_size,
+                "pm_max_image_size": colmap_max_size,
+                "pm_window_radius": 9,
+                "pm_geom_consistency": True,
+                "fusion_min_num_pixels": 2,
+                "fusion_max_reproj_error": colmap_reproj,
+                "outlier_std_ratio": colmap_outlier,
+                "poisson_depth": colmap_poisson,
+                "mesh_density_trim": 0.08,
+                "sift_max_features": colmap_sift_features,
+                "matcher": "ml_ranked" if "ML-Ranked" in colmap_matcher else "exhaustive",
+                "use_gpu": gpu.get("cuda_available", False)
+            }
+        elif backend == "vggt":
+            active_cfg = {
+                "name": selected_preset,
+                "backend": "vggt",
+                "vggt_mode": "depth" if "Depth" in str(vggt_mode) else "point_head",
+                "vggt_conf": float(vggt_conf),
+                "vggt_max_frames": int(vggt_frames),
+                "generate_mesh": bool(vggt_gen_mesh),
+                "poisson_depth": int(vggt_poisson),
+                "remove_outliers": bool(vggt_outliers),
+                "use_gpu": gpu.get("cuda_available", False)
+            }
+        else:  # mast3r
+            active_cfg = {
+                "name": selected_preset,
+                "backend": "mast3r",
+                "mast3r_size": int(mast3r_size),
+                "mast3r_pairing": str(mast3r_pairing),
+                "generate_mesh": bool(mast3r_gen_mesh),
+                "poisson_depth": int(mast3r_poisson),
+                "remove_outliers": bool(mast3r_outliers),
+                "min_matches": int(mast3r_min_matches),
+                "use_gpu": gpu.get("cuda_available", False)
+            }
         with open(CONFIG_FILE, "w", encoding="utf-8") as cf:
             json.dump(active_cfg, cf, indent=2)
 

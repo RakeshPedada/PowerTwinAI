@@ -125,11 +125,61 @@ PRESET_NEURALANGELO = {
     "description": "High-fidelity neural surface reconstruction via multi-resolution 3D hash grids and numerical gradients."
 }
 
+# VGGT Presets
+PRESET_VGGT_BALANCED = {
+    "name": "VGGT Balanced (Depth)",
+    "backend": "vggt",
+    "vggt_mode": "depth",
+    "vggt_conf": 1.8,
+    "vggt_max_frames": 24,
+    "generate_mesh": True,
+    "poisson_depth": 8,
+    "remove_outliers": True,
+}
+
+PRESET_VGGT_HIGH_QUALITY = {
+    "name": "VGGT High Quality (Depth + Poisson 9)",
+    "backend": "vggt",
+    "vggt_mode": "depth",
+    "vggt_conf": 2.2,
+    "vggt_max_frames": 36,
+    "generate_mesh": True,
+    "poisson_depth": 9,
+    "remove_outliers": True,
+}
+
+# MASt3R Presets
+PRESET_MAST3R_HYBRID = {
+    "name": "MASt3R Hybrid (Mode C)",
+    "backend": "mast3r",
+    "mast3r_size": 512,
+    "mast3r_pairing": "Mode C (Hybrid: Retrieval + ML Overlap)",
+    "min_matches": 15,
+    "generate_mesh": True,
+    "poisson_depth": 8,
+    "remove_outliers": True,
+}
+
+PRESET_MAST3R_FAST = {
+    "name": "MASt3R Fast (Mode A Retrieval)",
+    "backend": "mast3r",
+    "mast3r_size": 384,
+    "mast3r_pairing": "Mode A (MASt3R Retrieval Only)",
+    "min_matches": 10,
+    "generate_mesh": True,
+    "poisson_depth": 7,
+    "remove_outliers": True,
+}
+
 QUALITY_PRESETS = {
     "Fast": PRESET_FAST,
     "Standard": PRESET_STANDARD,
     "High Density": PRESET_HIGH_DENSITY,
-    "Neuralangelo High Fidelity": PRESET_NEURALANGELO
+    "Neuralangelo High Fidelity": PRESET_NEURALANGELO,
+    "VGGT Balanced": PRESET_VGGT_BALANCED,
+    "VGGT High Quality": PRESET_VGGT_HIGH_QUALITY,
+    "MASt3R Hybrid": PRESET_MAST3R_HYBRID,
+    "MASt3R Fast": PRESET_MAST3R_FAST
 }
 
 

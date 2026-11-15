@@ -89,6 +89,20 @@ def initialize_session():
     if "viewer_color_mode" not in st.session_state:
         st.session_state["viewer_color_mode"] = "Photorealistic RGB"
 
+    # Standalone backend studio states
+    if "vggt_running" not in st.session_state:
+        st.session_state["vggt_running"] = False
+    if "vggt_results" not in st.session_state:
+        st.session_state["vggt_results"] = None
+    if "mast3r_latest_result" not in st.session_state:
+        st.session_state["mast3r_latest_result"] = None
+    if "input_mode" not in st.session_state:
+        st.session_state["input_mode"] = "upload"
+    if "reconstruction_colors" not in st.session_state:
+        st.session_state["reconstruction_colors"] = None
+    if "mesh_updated" not in st.session_state:
+        st.session_state["mesh_updated"] = False
+
     # Active recent activity or notification message
     if "status_notification" not in st.session_state:
         st.session_state["status_notification"] = None

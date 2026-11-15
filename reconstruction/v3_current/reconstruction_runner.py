@@ -15,6 +15,11 @@ import time
 import traceback
 import numpy as np
 
+# Ensure project root is always accessible for multi-backend reconstruction imports
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 # =========================================================
 # UTF-8 CONSOLE FIX
 # =========================================================

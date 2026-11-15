@@ -231,7 +231,7 @@ def render_viewer_page():
         gridcolor="#2A3548" if show_axes else "rgba(0,0,0,0)",
         showgrid=show_axes,
         zerolinecolor="#3E4D67",
-        titlefont=dict(color="#94A3B8", size=11),
+        title_font=dict(color="#94A3B8", size=11),
         tickfont=dict(color="#64748B", size=10),
         visible=show_axes
     )

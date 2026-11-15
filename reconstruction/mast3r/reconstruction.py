@@ -302,16 +302,21 @@ def run_mast3r_reconstruction(
     export_colmap: bool = True,
     use_ba: bool = False,
     generate_mesh_flag: bool = True,
+    generate_mesh: Optional[bool] = None,
     mesh_method: str = "Poisson",
     poisson_depth: int = 8,
     density_quantile: float = 0.01,
     max_frames: Optional[int] = None,
-    progress_callback=None
+    progress_callback=None,
+    **kwargs
 ) -> Dict[str, Any]:
     """
     Execute full official MASt3R-SfM 3D reconstruction pipeline.
     """
     total_start_time = time.perf_counter()
+
+    if generate_mesh is not None:
+        generate_mesh_flag = bool(generate_mesh)
 
     # Hardware check
     hw = detect_mast3r_hardware()

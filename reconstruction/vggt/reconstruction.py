@@ -550,6 +550,14 @@ def generate_vggt_surface_mesh(
     if len(mesh.triangles) > 100:
         mesh = mesh.filter_smooth_taubin(number_of_iterations=3)
 
+    # Sanitize any non-finite vertices produced by smoothing or boundary singularities
+    v_arr = np.asarray(mesh.vertices)
+    if len(v_arr) > 0 and not np.isfinite(v_arr).all():
+        bad_mask = ~np.isfinite(v_arr).all(axis=1)
+        mesh.remove_vertices_by_mask(bad_mask)
+        mesh.remove_unreferenced_vertices()
+        mesh.remove_degenerate_triangles()
+
     # 4. Color transfer
     if pcd.has_colors() and len(mesh.vertices) > 0:
         if progress_callback:
@@ -560,8 +568,11 @@ def generate_vggt_surface_mesh(
         mesh_colors = np.zeros_like(mesh_verts)
 
         for i, v in enumerate(mesh_verts):
-            _, idx, _ = kdtree.search_knn_vector_3d(v, 1)
-            mesh_colors[i] = pcd_colors[idx[0]]
+            k, idx, _ = kdtree.search_knn_vector_3d(v, 1)
+            if k > 0 and len(idx) > 0:
+                n_idx = int(idx[0])
+                if 0 <= n_idx < len(pcd_colors):
+                    mesh_colors[i] = pcd_colors[n_idx]
 
         mesh.vertex_colors = o3d.utility.Vector3dVector(np.clip(mesh_colors, 0.0, 1.0))
 

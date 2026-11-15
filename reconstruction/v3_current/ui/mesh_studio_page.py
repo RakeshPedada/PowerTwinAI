@@ -111,7 +111,7 @@ def render_mesh_studio_page():
                 )
             )
 
-            axis_cfg = dict(showbackground=True, backgroundcolor="#0F1420", gridcolor="#2A3548", titlefont=dict(color="#94A3B8"))
+            axis_cfg = dict(showbackground=True, backgroundcolor="#0F1420", gridcolor="#2A3548", title_font=dict(color="#94A3B8"))
             fig.update_layout(
                 paper_bgcolor="#0B0F19",
                 plot_bgcolor="#0B0F19",

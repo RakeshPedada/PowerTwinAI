@@ -201,6 +201,90 @@ try:
     # RUN RECONSTRUCTION BACKEND
     # =====================================================
 
+    active_backend = config.get("backend", "colmap").lower()
+    log_message(f"[BACKEND] Selected reconstruction backend: {active_backend}")
+
+    if active_backend == "vggt":
+        save_status("RUNNING", step="VGGT-1B feed-forward 3D geometry & camera pose prediction...", progress=0.30)
+        log_message("[VGGT] Launching official Meta VGGT-1B reconstruction pipeline...")
+        from reconstruction.vggt import run_vggt_reconstruction
+
+        vggt_output_dir = os.path.abspath(os.path.join(TEMP_DIR, "..", "outputs", "vggt"))
+        os.makedirs(vggt_output_dir, exist_ok=True)
+        vggt_res = run_vggt_reconstruction(
+            image_paths=processed_image_paths,
+            output_dir=vggt_output_dir,
+            reconstruction_mode=config.get("vggt_mode", "depth"),
+            conf_threshold_val=float(config.get("vggt_conf", 1.8)),
+            max_frames=int(config.get("vggt_max_frames", 24)),
+            coherent_order=True,
+            remove_outliers=True,
+            export_colmap=True,
+            use_ba=bool(config.get("use_ba", False)),
+            generate_mesh_flag=True,
+            poisson_depth=int(config.get("poisson_depth", 8)),
+            progress_callback=log_message
+        )
+
+        save_status("RUNNING", step="Saving VGGT 3D reconstruction telemetry & data...", progress=0.90)
+        pts = vggt_res.get("points", np.empty((0, 3)))
+        cols = vggt_res.get("colors", np.empty((0, 3)))
+        cams = vggt_res.get("camera_positions", np.empty((0, 3)))
+        ply_out = vggt_res.get("point_cloud_ply", "")
+
+        np.savez_compressed(
+            RESULT_FILE,
+            points=pts,
+            colors=cols,
+            camera_positions=cams,
+            matches=np.empty((0, 2)),
+            ply_path=ply_out,
+            pair_logs=[],
+            analytics={"backend": "VGGT-1B", "points_count": len(pts), "cameras_count": len(cams), "runtime": vggt_res.get("runtime", 0.0)}
+        )
+
+        save_status("COMPLETED", step="VGGT-1B 3D reconstruction finished successfully.", progress=1.0)
+        log_message(f"[COMPLETED] VGGT-1B Reconstruction finished in {vggt_res.get('runtime', 0.0):.2f}s with {len(pts)} points.")
+        sys.exit(0)
+
+    elif active_backend == "mast3r":
+        save_status("RUNNING", step="MASt3R matching & sparse global alignment...", progress=0.30)
+        log_message("[MAST3R] Launching official Naver MASt3R-SfM reconstruction pipeline...")
+        from reconstruction.mast3r import run_mast3r_reconstruction
+
+        mast3r_output_dir = os.path.abspath(os.path.join(TEMP_DIR, "..", "outputs", "mast3r"))
+        os.makedirs(mast3r_output_dir, exist_ok=True)
+        mast3r_res = run_mast3r_reconstruction(
+            image_paths=processed_image_paths,
+            output_dir=mast3r_output_dir,
+            pairing_mode=config.get("mast3r_pairing", "Mode C (Hybrid)"),
+            generate_mesh=True,
+            poisson_depth=int(config.get("poisson_depth", 8)),
+            progress_callback=log_message
+        )
+
+        save_status("RUNNING", step="Saving MASt3R-SfM 3D reconstruction telemetry & data...", progress=0.90)
+        pts = mast3r_res.get("points", np.empty((0, 3)))
+        cols = mast3r_res.get("colors", np.empty((0, 3)))
+        cams = mast3r_res.get("camera_positions", np.empty((0, 3)))
+        ply_out = mast3r_res.get("point_cloud_ply", "")
+
+        np.savez_compressed(
+            RESULT_FILE,
+            points=pts,
+            colors=cols,
+            camera_positions=cams,
+            matches=np.empty((0, 2)),
+            ply_path=ply_out,
+            pair_logs=[],
+            analytics={"backend": "MASt3R-SfM", "points_count": len(pts), "cameras_count": len(cams), "runtime": mast3r_res.get("runtime", 0.0)}
+        )
+
+        save_status("COMPLETED", step="MASt3R-SfM reconstruction finished successfully.", progress=1.0)
+        log_message(f"[COMPLETED] MASt3R-SfM Reconstruction finished in {mast3r_res.get('runtime', 0.0):.2f}s with {len(pts)} points.")
+        sys.exit(0)
+
+    # Default: COLMAP
     save_status("RUNNING", step="COLMAP feature extraction & multi-view matching...", progress=0.25)
     log_message(
         "[BACKEND] Starting reconstruction backend..."

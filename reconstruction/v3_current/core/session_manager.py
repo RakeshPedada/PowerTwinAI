@@ -70,6 +70,9 @@ def initialize_session():
         st.session_state["active_backend"] = "colmap"
 
     # Dataset persistence
+    from core.dataset_manager import get_shared_dataset
+    get_shared_dataset()
+
     if "dataset_mode" not in st.session_state:
         st.session_state["dataset_mode"] = "folder"
     if "dataset_folder" not in st.session_state:

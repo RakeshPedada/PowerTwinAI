@@ -53,48 +53,48 @@ def save_uploaded_images(
 ):
     """
     Save images to *temp_dir* and write their paths to *image_paths_file*.
-
-    Parameters
-    ----------
-    uploaded_files : list[UploadedFile] | list[str]
-        Streamlit UploadedFile objects (upload mode) or plain file paths
-        (folder mode).
-    mode           : str  — "upload" or "folder"
-    temp_dir       : str  — working directory for saved images
-    image_paths_file : str — JSON file that will hold the list of paths
+    Robustly handles both Streamlit UploadedFile objects and plain file path strings.
     """
+    import shutil
 
     saved_paths: list[str] = []
+    os.makedirs(temp_dir, exist_ok=True)
 
-    # ── Upload mode: UploadedFile objects → save bytes to disk ───────────────
-    if mode == "upload":
+    for item in uploaded_files:
+        if item is None:
+            continue
 
-        os.makedirs(temp_dir, exist_ok=True)
-
-        for file in uploaded_files:
-
-            save_path = os.path.join(temp_dir, file.name)
-
-            with open(save_path, "wb") as f:
-                f.write(file.getbuffer())
-
-            saved_paths.append(save_path)   # always a plain str
-
-    # ── Folder mode: already plain file paths (list[str]) ────────────────────
-    else:
-
-        for item in uploaded_files:
-            # Guard: reject any stray UploadedFile that slipped through
-            if isinstance(item, str):
-                saved_paths.append(item)
-            else:
-                # Fallback: save it the same way as upload mode
-                save_path = os.path.join(temp_dir, item.name)
+        if isinstance(item, str):
+            if os.path.exists(item):
+                # If in upload mode and not in temp_dir, copy to temp_dir
+                dest_path = os.path.join(temp_dir, os.path.basename(item))
+                if os.path.abspath(item) != os.path.abspath(dest_path):
+                    try:
+                        shutil.copy2(item, dest_path)
+                        saved_paths.append(os.path.abspath(dest_path))
+                    except Exception:
+                        saved_paths.append(os.path.abspath(item))
+                else:
+                    saved_paths.append(os.path.abspath(item))
+        elif hasattr(item, "name"):
+            filename = getattr(item, "name", "image.jpg")
+            save_path = os.path.join(temp_dir, filename)
+            try:
+                if hasattr(item, "seek"):
+                    item.seek(0)
+                if hasattr(item, "getbuffer"):
+                    buf = item.getbuffer()
+                else:
+                    buf = item.read()
                 with open(save_path, "wb") as f:
-                    f.write(item.getbuffer())
-                saved_paths.append(save_path)
+                    f.write(buf)
+                if hasattr(item, "seek"):
+                    item.seek(0)
+                saved_paths.append(os.path.abspath(save_path))
+            except Exception as e:
+                print(f"[RECON_MGR] Warning saving image {filename}: {e}")
 
-    # ── Persist paths as JSON (list of plain strings only) ───────────────────
+    # Persist paths as JSON (list of plain strings only)
     with open(image_paths_file, "w", encoding="utf-8") as f:
         json.dump(saved_paths, f, indent=2)
 

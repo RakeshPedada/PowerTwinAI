@@ -55,8 +55,10 @@ def _render_upload_mode() -> list | None:
     )
 
     if uploaded_files:
-        n = len(uploaded_files)
-        total_bytes = sum(f.size for f in uploaded_files)
+        from core.dataset_manager import set_shared_dataset_from_uploaded_files
+        ds = set_shared_dataset_from_uploaded_files(uploaded_files)
+        n = ds["count"]
+        total_bytes = ds["total_bytes"]
 
         st.markdown(
             f"""
@@ -69,7 +71,24 @@ def _render_upload_mode() -> list | None:
 
         ok_count = n >= MIN_IMAGES
         _render_req_rows(n_images=n, from_folder=False)
-        return uploaded_files if ok_count else None
+        return ds["image_paths"] if ok_count else None
+
+    from core.dataset_manager import get_shared_dataset
+    ds = get_shared_dataset()
+    if ds.get("mode") == "upload" and ds.get("image_paths"):
+        n = ds["count"]
+        total_bytes = ds["total_bytes"]
+        st.markdown(
+            f"""
+<div class="badge-counter">
+  📷 &nbsp;<b>{n}</b> image{"s" if n != 1 else ""} persisted &nbsp;·&nbsp; {_fmt_size(total_bytes)} total
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        ok_count = n >= MIN_IMAGES
+        _render_req_rows(n_images=n, from_folder=False)
+        return ds["image_paths"] if ok_count else None
 
     _render_req_rows(n_images=0, from_folder=False)
     return None
@@ -111,7 +130,9 @@ def _render_folder_mode() -> list | None:
         )
         return None
 
-    image_paths = _scan_folder(folder_path)
+    from core.dataset_manager import set_shared_dataset_from_folder
+    ds = set_shared_dataset_from_folder(folder_path)
+    image_paths = ds["image_paths"]
     n = len(image_paths)
 
     if n == 0:

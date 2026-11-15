@@ -23,12 +23,28 @@ from core.reconstruction_manager import (
     prepare_workspace, save_uploaded_images, launch_reconstruction
 )
 from core.gpu_detector import get_gpu_info
-from vggt_pipeline import run_vggt_reconstruction
-from reconstruction.mast3r import run_mast3r_reconstruction
+from core.dataset_manager import (
+    get_shared_dataset,
+    set_shared_dataset_from_uploaded_files,
+    set_shared_dataset_from_folder,
+    print_dataset_debug_report,
+    MIN_REQUIRED_IMAGES
+)
+try:
+    from reconstruction.vggt import run_vggt_reconstruction
+except ImportError:
+    try:
+        from vggt_pipeline import run_vggt_reconstruction
+    except ImportError:
+        run_vggt_reconstruction = None
+
+try:
+    from reconstruction.mast3r import run_mast3r_reconstruction
+except ImportError:
+    run_mast3r_reconstruction = None
 
 
 SUPPORTED_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp")
-MIN_REQUIRED_IMAGES = 3
 
 
 def _fmt_bytes(n: int) -> str:
@@ -128,25 +144,27 @@ def render_new_reconstruction():
             key="new_recon_uploader"
         )
         if uploaded_files:
-            st.session_state["dataset_files"] = uploaded_files
-            resolved_images = uploaded_files
-            total_b = sum(f.size for f in uploaded_files)
+            # Immediately save and persist to temp_session/uploaded_dataset
+            set_shared_dataset_from_uploaded_files(uploaded_files)
+
+        ds = get_shared_dataset()
+        if ds.get("image_paths"):
+            resolved_images = ds["image_paths"]
+            total_b = ds.get("total_bytes", 0)
             st.markdown(
-                f"<div class='badge-pill badge-success' style='margin-top: 8px;'>📷 {len(uploaded_files)} images uploaded · {_fmt_bytes(total_b)} total dataset size</div>",
+                f"<div class='badge-pill badge-success' style='margin-top: 8px;'>📷 {len(resolved_images)} images uploaded & validated · {_fmt_bytes(total_b)} total dataset size</div>",
                 unsafe_allow_html=True
             )
             # Display thumbnail previews
-            with st.expander(f"🖼️ Preview Uploaded Images ({len(uploaded_files)})", expanded=False):
+            with st.expander(f"🖼️ Preview Uploaded Images ({len(resolved_images)})", expanded=False):
                 thumb_cols = st.columns(6)
-                for idx, f in enumerate(uploaded_files[:18]):
+                for idx, p in enumerate(resolved_images[:18]):
                     with thumb_cols[idx % 6]:
                         try:
-                            im = Image.open(f)
-                            st.image(im, caption=f"{f.name[:12]} ({_fmt_bytes(f.size)})", width="stretch")
+                            im = Image.open(p)
+                            st.image(im, caption=f"{os.path.basename(p)[:12]} ({_fmt_bytes(os.path.getsize(p))})", width="stretch")
                         except Exception:
-                            st.caption(f.name)
-        elif st.session_state.get("dataset_files") and isinstance(st.session_state["dataset_files"][0], type(uploaded_files)):
-            resolved_images = st.session_state["dataset_files"]
+                            st.caption(os.path.basename(p))
     else:
         # Folder Mode
         default_folder = st.session_state.get("dataset_folder", "")
@@ -159,19 +177,17 @@ def render_new_reconstruction():
         )
         if folder_input:
             clean_path = folder_input.strip().strip('"').strip("'")
-            st.session_state["dataset_folder"] = clean_path
             if os.path.isdir(clean_path):
-                img_paths = _scan_folder(clean_path)
-                resolved_images = img_paths
-                st.session_state["dataset_files"] = img_paths
-                total_b = sum(os.path.getsize(p) for p in img_paths if os.path.exists(p))
+                ds = set_shared_dataset_from_folder(clean_path)
+                resolved_images = ds["image_paths"]
+                total_b = ds.get("total_bytes", 0)
                 st.markdown(
-                    f"<div class='badge-pill badge-success' style='margin-top: 8px;'>✅ Found <b>{len(img_paths)} images</b> in directory · {_fmt_bytes(total_b)} total</div>",
+                    f"<div class='badge-pill badge-success' style='margin-top: 8px;'>✅ Found <b>{len(resolved_images)} images</b> in directory · {_fmt_bytes(total_b)} total</div>",
                     unsafe_allow_html=True
                 )
-                with st.expander(f"🖼️ Inspect Folder Images ({len(img_paths)})", expanded=False):
+                with st.expander(f"🖼️ Inspect Folder Images ({len(resolved_images)})", expanded=False):
                     thumb_cols = st.columns(6)
-                    for idx, p in enumerate(img_paths[:18]):
+                    for idx, p in enumerate(resolved_images[:18]):
                         with thumb_cols[idx % 6]:
                             try:
                                 im = Image.open(p)
@@ -180,6 +196,10 @@ def render_new_reconstruction():
                                 st.caption(os.path.basename(p))
             else:
                 st.markdown(f"<div class='badge-pill badge-error' style='margin-top: 8px;'>❌ Directory not found: {clean_path}</div>", unsafe_allow_html=True)
+        else:
+            ds = get_shared_dataset()
+            if ds.get("image_paths"):
+                resolved_images = ds["image_paths"]
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -414,34 +434,43 @@ def render_new_reconstruction():
     if launch_clicked:
         st.session_state["reconstruction_running"] = True
         st.session_state["reconstruction_done"] = False
+        st.session_state["active_backend"] = backend
 
-        # Execute based on backend
-        if backend == "colmap":
-            # Persist config and launch background runner
-            os.makedirs(TEMP_DIR, exist_ok=True)
-            active_cfg = {
-                "name": selected_preset,
-                "image_max_size": colmap_max_size,
-                "pm_max_image_size": colmap_max_size,
-                "pm_window_radius": 9,
-                "pm_geom_consistency": True,
-                "fusion_min_num_pixels": 2,
-                "fusion_max_reproj_error": colmap_reproj,
-                "outlier_std_ratio": colmap_outlier,
-                "poisson_depth": colmap_poisson,
-                "mesh_density_trim": 0.08,
-                "sift_max_features": colmap_sift_features,
-                "matcher": "ml_ranked" if "ML-Ranked" in colmap_matcher else "exhaustive",
-                "use_gpu": gpu.get("cuda_available", False)
-            }
-            with open(CONFIG_FILE, "w", encoding="utf-8") as cf:
-                json.dump(active_cfg, cf, indent=2)
+        # 1. Output comprehensive dataset diagnostic debug report
+        print_dataset_debug_report(backend)
 
-            prepare_workspace(TEMP_DIR, LOG_FILE, STATUS_FILE, RESULT_FILE)
-            save_uploaded_images(resolved_images, current_mode, TEMP_DIR, IMAGE_PATHS_FILE)
-            launch_reconstruction(log_file=LOG_FILE)
+        # 2. Persist active configuration including backend
+        os.makedirs(TEMP_DIR, exist_ok=True)
+        active_cfg = {
+            "name": selected_preset,
+            "backend": backend,
+            "image_max_size": colmap_max_size,
+            "pm_max_image_size": colmap_max_size,
+            "pm_window_radius": 9,
+            "pm_geom_consistency": True,
+            "fusion_min_num_pixels": 2,
+            "fusion_max_reproj_error": colmap_reproj,
+            "outlier_std_ratio": colmap_outlier,
+            "poisson_depth": colmap_poisson,
+            "mesh_density_trim": 0.08,
+            "sift_max_features": colmap_sift_features,
+            "matcher": "ml_ranked" if "ML-Ranked" in colmap_matcher else "exhaustive",
+            "use_gpu": gpu.get("cuda_available", False),
+            "vggt_mode": "depth",
+            "vggt_conf": 1.8,
+            "mast3r_pairing": "Mode C (Hybrid)"
+        }
+        with open(CONFIG_FILE, "w", encoding="utf-8") as cf:
+            json.dump(active_cfg, cf, indent=2)
 
-        # Redirect to Reconstruction Studio
+        # 3. Setup workspace and persist canonical image paths
+        prepare_workspace(TEMP_DIR, LOG_FILE, STATUS_FILE, RESULT_FILE)
+        save_uploaded_images(resolved_images, current_mode, TEMP_DIR, IMAGE_PATHS_FILE)
+
+        # 4. Launch unified background runner
+        launch_reconstruction(log_file=LOG_FILE)
+
+        # 5. Redirect to Reconstruction Studio
         st.session_state["nav_page"] = "Reconstruction Studio"
         st.rerun()
 

@@ -31,40 +31,26 @@ from reconstruction.mast3r import (
 
 
 def _collect_image_paths(uploaded_files, mode) -> list:
-    """Resolve input image paths from upload or dataset folder."""
-    if mode == "Dataset Folder":
-        colmap_img_dir = os.path.join("colmap_workspace", "images")
+    """Resolve input image paths from upload or dataset folder using shared dataset manager."""
+    from core.dataset_manager import get_shared_dataset, set_shared_dataset_from_uploaded_files, set_shared_dataset_from_folder
+
+    ds = get_shared_dataset()
+    if ds.get("image_paths"):
+        return ds["image_paths"]
+
+    if uploaded_files:
+        if isinstance(uploaded_files, list) and all(isinstance(p, str) for p in uploaded_files):
+            return [os.path.abspath(p) for p in uploaded_files if os.path.exists(p)]
+        res = set_shared_dataset_from_uploaded_files(uploaded_files)
+        return res.get("image_paths", [])
+
+    if mode in ["folder", "Dataset Folder"]:
+        colmap_img_dir = os.path.abspath(os.path.join("colmap_workspace", "images"))
         if os.path.exists(colmap_img_dir):
-            patterns = ["*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"]
-            paths = []
-            for pat in patterns:
-                paths.extend(glob.glob(os.path.join(colmap_img_dir, pat)))
-            if paths:
-                return sorted(list(set(paths)))
+            ds = set_shared_dataset_from_folder(colmap_img_dir)
+            return ds.get("image_paths", [])
 
-        temp_orig = os.path.join("temp_session_c861f0ac", "original")
-        if os.path.exists(temp_orig):
-            patterns = ["*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"]
-            paths = []
-            for pat in patterns:
-                paths.extend(glob.glob(os.path.join(temp_orig, pat)))
-            if paths:
-                return sorted(list(set(paths)))
-
-    if not uploaded_files:
-        return []
-
-    temp_save_dir = os.path.join("temp_session", "mast3r_inputs")
-    os.makedirs(temp_save_dir, exist_ok=True)
-    saved_paths = []
-    for file in uploaded_files:
-        save_path = os.path.join(temp_save_dir, file.name)
-        if not os.path.exists(save_path):
-            with open(save_path, "wb") as f:
-                f.write(file.getbuffer())
-        saved_paths.append(save_path)
-
-    return sorted(saved_paths)
+    return []
 
 
 def render_mast3r_section(uploaded_files, mode):
@@ -232,6 +218,8 @@ def render_mast3r_section(uploaded_files, mode):
     output_dir = os.path.join("outputs", "mast3r")
 
     if run_clicked:
+        from core.dataset_manager import print_dataset_debug_report
+        print_dataset_debug_report("mast3r")
         if num_found < 2:
             st.error("Please provide at least 2 images to run MASt3R-SfM.")
             return

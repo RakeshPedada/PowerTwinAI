@@ -29,30 +29,27 @@ from ui.point_cloud_viewer import render_point_cloud
 
 def _prepare_vggt_image_inputs(uploaded_files, mode) -> list[str]:
     """
-    Extract or save image paths for VGGT without modifying original images.
+    Extract or save image paths for VGGT using the unified dataset manager.
     """
-    if not uploaded_files:
-        return []
+    from core.dataset_manager import get_shared_dataset, set_shared_dataset_from_uploaded_files, set_shared_dataset_from_folder
 
-    # If folder mode, uploaded_files is already a list of file paths
-    if mode == "folder":
+    ds = get_shared_dataset()
+    if ds.get("image_paths"):
+        return ds["image_paths"]
+
+    if uploaded_files:
         if isinstance(uploaded_files, list) and all(isinstance(p, str) for p in uploaded_files):
             return [os.path.abspath(p) for p in uploaded_files if os.path.exists(p)]
+        res = set_shared_dataset_from_uploaded_files(uploaded_files)
+        return res.get("image_paths", [])
 
-    # If upload mode, save to a dedicated temporary folder for VGGT
-    temp_dir = os.path.abspath("temp_session_vggt")
-    os.makedirs(temp_dir, exist_ok=True)
+    if mode == "folder":
+        default_folder = os.path.abspath(os.path.join("colmap_workspace", "images"))
+        if os.path.exists(default_folder):
+            res = set_shared_dataset_from_folder(default_folder)
+            return res.get("image_paths", [])
 
-    saved_paths = []
-    for file in uploaded_files:
-        filename = getattr(file, "name", str(file))
-        save_path = os.path.join(temp_dir, filename)
-        if not os.path.exists(save_path):
-            with open(save_path, "wb") as f:
-                f.write(file.getbuffer())
-        saved_paths.append(save_path)
-
-    return sorted(saved_paths)
+    return []
 
 
 def render_vggt_section(uploaded_files, mode):
@@ -181,6 +178,8 @@ def render_vggt_section(uploaded_files, mode):
         st.session_state.vggt_results = None
 
     if st.button("🚀 Run VGGT Reconstruction", type="primary", width="stretch", disabled=st.session_state.vggt_running):
+        from core.dataset_manager import print_dataset_debug_report
+        print_dataset_debug_report("vggt")
         st.session_state.vggt_running = True
         progress_bar = st.progress(0.0)
         status_box = st.empty()
